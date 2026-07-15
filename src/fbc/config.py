@@ -106,6 +106,68 @@ FST_GROUPS: dict[str, tuple[int, ...]] = {
 # --------------------------------------------------------------------------- #
 # Default hyperparameters (override per-run via experiments/configs/*.yaml)
 # --------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- #
+# Dataset path resolution — find datasets by MARKER FILES anywhere under
+# INPUT_ROOT, so it works whether Kaggle mounts as /kaggle/input/<name> or the
+# nested /kaggle/input/datasets/<owner>/<name> layout we actually have.
+# --------------------------------------------------------------------------- #
+def _first_match(*patterns: str) -> Path | None:
+    """First path matching any rglob pattern under INPUT_ROOT (sorted)."""
+    if not INPUT_ROOT.exists():
+        return None
+    for pat in patterns:
+        hits = sorted(INPUT_ROOT.rglob(pat))
+        if hits:
+            return hits[0]
+    return None
+
+
+def dataset_paths(name: str) -> dict[str, Path] | None:
+    """Return the key file/dir paths for a dataset, or None if not found.
+
+    Keys vary per dataset; loaders know which they need. Resolved from marker
+    files so the exact mount nesting is irrelevant.
+    """
+    if name == "derm7pt":
+        meta = _first_match("**/release_v0/meta/meta.csv", "**/meta/meta.csv")
+        if meta is None:
+            return None
+        release = meta.parents[1]                 # meta/ -> release_v0/
+        return {
+            "meta_csv": meta,
+            "images_dir": release / "images",
+            "train_idx": release / "meta" / "train_indexes.csv",
+            "valid_idx": release / "meta" / "valid_indexes.csv",
+            "test_idx": release / "meta" / "test_indexes.csv",
+        }
+    if name == "pad_ufes_20":
+        md = _first_match("**/pad-ufes-20/metadata.csv", "**/PAD-UFES-20/**/metadata.csv",
+                          "**/metadata.csv")
+        if md is None:
+            return None
+        return {"metadata_csv": md, "images_root": md.parent / "images"}
+    if name == "ph2":
+        # NOTE: needs an images-bearing mirror. Markers probed once attached.
+        ann = _first_match("**/PH2_dataset.xlsx", "**/PH2_dataset.txt")
+        imgs = _first_match("**/IMD*/**/*.bmp", "**/*_Dermoscopic_Image/**/*.bmp",
+                            "**/PH2*Dataset*images/**/*.bmp")
+        if ann is None:
+            return None
+        return {"annotations": ann,
+                "images_root": (imgs.parents[2] if imgs is not None else None)}
+    if name == "fitzpatrick17k":
+        csv = _first_match("**/fitzpatrick17k*.csv", "**/fitzpatrick*.csv")
+        if csv is None:
+            return None
+        return {"csv": csv, "images_root": csv.parent}
+    raise KeyError(f"unknown dataset {name!r}")
+
+
+def available_datasets() -> dict[str, bool]:
+    """Quick presence check for all registered datasets."""
+    return {name: dataset_paths(name) is not None for name in DATASETS}
+
+
 @dataclass
 class TrainConfig:
     seed: int = 1337
