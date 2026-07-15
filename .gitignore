@@ -1,0 +1,30 @@
+# Artifacts (embeddings cache, checkpoints, results) — regenerable
+artifacts/
+*.npy
+*.npz
+*.pt
+*.pth
+*.ckpt
+
+# Data (never commit datasets)
+data/
+*.zip
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.ipynb_checkpoints/
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

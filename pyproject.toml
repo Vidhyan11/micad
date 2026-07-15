@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "faithful-by-concept"
+version = "0.1.0"
+description = "Faithful-by-Concept — verifiable & equitable concept reasoning for skin lesion diagnosis (MICAD 2026)"
+requires-python = ">=3.10"
+readme = "README.md"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+fbc = ["py.typed"]
