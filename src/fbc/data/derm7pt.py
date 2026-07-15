@@ -29,26 +29,45 @@ DERM7PT_COL = {
     "regression_structures": "regression_structures",
 }
 
-# Vascular patterns considered *atypical* (score-positive) in the 7-pt checklist.
-_ATYPICAL_VASCULAR = {"dotted", "linear irregular", "within regression"}
+# Explicit derm7pt taxonomy per concept (lowercased). We encode BINARY presence of
+# the *suspicious* variant (the one that scores on the 7-point checklist). Listing
+# the full known value set makes the mapping auditable and lets us warn only on
+# genuinely unexpected values. Verified against the observed meta.csv categories.
+_POSITIVE_VALUES: dict[str, set[str]] = {
+    "pigment_network": {"atypical"},
+    "blue_whitish_veil": {"present"},
+    "vascular_structures": {"within regression", "dotted", "linear irregular"},
+    "pigmentation": {"diffuse irregular", "localized irregular"},
+    "streaks": {"irregular"},
+    "dots_globules": {"irregular"},
+    "regression_structures": {"blue areas", "white areas", "combinations"},
+}
+_NEGATIVE_VALUES: dict[str, set[str]] = {
+    "pigment_network": {"absent", "typical"},
+    "blue_whitish_veil": {"absent"},
+    "vascular_structures": {"absent", "arborizing", "comma", "hairpin", "wreath",
+                            "linear"},
+    "pigmentation": {"absent", "diffuse regular", "localized regular"},
+    "streaks": {"absent", "regular"},
+    "dots_globules": {"absent", "regular"},
+    "regression_structures": {"absent"},
+}
 
 
-def _binarize(concept_key: str, raw: str) -> float:
-    """Map a raw derm7pt categorical value to binary suspicious-present {0,1}."""
+def _binarize(concept_key: str, raw: str) -> tuple[float, bool]:
+    """Map a raw derm7pt value to binary suspicious-present {0,1}.
+
+    Returns (value, recognized) where recognized=False flags a value not in the
+    known taxonomy (so the caller can warn). Unknown values default to 0.
+    """
     v = str(raw).strip().lower()
-    if v in ("", "nan", "absent"):
-        return 0.0
-    if concept_key == "pigment_network":
-        return 1.0 if "atypical" in v else 0.0          # typical -> 0
-    if concept_key == "blue_whitish_veil":
-        return 1.0 if "present" in v else 0.0
-    if concept_key == "vascular_structures":
-        return 1.0 if v in _ATYPICAL_VASCULAR else 0.0
-    if concept_key in ("streaks", "pigmentation", "dots_globules"):
-        return 1.0 if "irregular" in v else 0.0         # regular -> 0
-    if concept_key == "regression_structures":
-        return 1.0                                       # any non-absent -> present
-    return 0.0
+    if v in ("", "nan"):
+        return 0.0, True
+    if v in _POSITIVE_VALUES.get(concept_key, set()):
+        return 1.0, True
+    if v in _NEGATIVE_VALUES.get(concept_key, set()):
+        return 0.0, True
+    return 0.0, False
 
 
 def _group_diagnosis(raw: str) -> str:
@@ -122,14 +141,10 @@ def load(verbose: bool = True) -> pd.DataFrame:
         # concepts
         for src_col, key in DERM7PT_COL.items():
             raw = r.get(src_col, "")
-            val = _binarize(key, raw)
+            val, recognized = _binarize(key, raw)
             rec[S.concept_col(key)] = val
             rec[S.mask_col(key)] = 1
-            # track any value that binarized to 0 but wasn't a known benign token
-            vl = str(raw).strip().lower()
-            if vl not in ("", "nan", "absent", "typical", "regular", "present",
-                          "atypical", "irregular", "arborizing", "comma", "hairpin",
-                          "wreath") and vl not in _ATYPICAL_VASCULAR:
+            if not recognized:
                 unmapped.setdefault(key, set()).add(str(raw))
         # concepts NOT in derm7pt (asymmetry) -> mask 0
         for key in C.CONCEPT_KEYS:
