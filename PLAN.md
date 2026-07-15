@@ -80,21 +80,32 @@ micad/
 
 ## 2. Data layer
 
-### 2.1 Canonical concept vocabulary (`data/concepts.py`)
-Define one shared concept vocabulary so every dataset maps into the same space. Anchor on the **7-point checklist** (derm7pt is our GT source):
+### 2.0 TWO models, TWO concept vocabularies (key design decision)
+derm7pt is **dermoscopic**; the fairness datasets are **clinical** photos. The 7-pt
+concepts are dermoscopy-specific and don't transfer to clinical images, so we train
+**two CBMs** sharing one architecture and one faithfulness metric:
 
-| # | Concept | derm7pt | PH2 | Foundation pseudo-label |
-|---|---|---|---|---|
-| 1 | Pigment network (typical/atypical) | GT | GT | zero-shot |
-| 2 | Blue-whitish veil | GT | GT | zero-shot |
-| 3 | Vascular structures | GT | – | zero-shot |
-| 4 | Pigmentation | GT | – | zero-shot |
-| 5 | Streaks | GT | GT | zero-shot |
-| 6 | Dots & globules | GT | GT | zero-shot |
-| 7 | Regression structures | GT | GT | zero-shot |
-| (+) | Asymmetry (ABCD) | – | GT | zero-shot |
+- **Model A (dermoscopic)** — derm7pt, real 7-pt concept GT. Validates the faithfulness
+  metric against ground-truth concepts (contrib 1 & 2).
+- **Model B (clinical)** — Fitzpatrick17k (+PAD-UFES), foundation-bootstrapped clinical
+  concepts. Within-domain fairness-of-reasoning audit across skin tones (contrib 3).
 
-`concepts.py` exposes `CONCEPTS` (ordered list), per-dataset column maps, and helpers to build a fixed-length concept vector with a mask for "unavailable in this dataset."
+### 2.1 Concept vocabularies (`data/concepts.py`)
+Two vocabularies held in a single UNION (`CONCEPTS`, 15 concepts); each dataset row
+carries all concept/mask columns and per-dataset masks select the annotated subset.
+Each model reads only its own vocabulary (`DERMOSCOPIC_KEYS` / `CLINICAL_KEYS`).
+
+**Dermoscopic (Model A, derm7pt GT):** pigment_network, blue_whitish_veil,
+vascular_structures, pigmentation, streaks, dots_globules, regression_structures.
+Encoded as binary presence of the *suspicious* 7-pt variant (auditable value sets).
+
+**Clinical (Model B, pseudo-labeled):** asymmetry, border_irregularity,
+color_variegation, large_diameter, elevation, ulceration, scale, erythema — ABCD +
+visible morphology, scored zero-shot by the foundation model on clinical images.
+
+`concepts.py` exposes `CONCEPTS`, `DERMOSCOPIC_KEYS`, `CLINICAL_KEYS`,
+`DATASET_DOMAIN`, `DATASET_GT_CONCEPTS`, and mask helpers.
+(**PH2 dropped** — no mirror has images + concept labels together.)
 
 ### 2.2 Per-dataset loaders
 Each loader returns a uniform record list / DataFrame with columns:
