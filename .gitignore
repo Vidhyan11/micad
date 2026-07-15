@@ -6,8 +6,9 @@ artifacts/
 *.pth
 *.ckpt
 
-# Data (never commit datasets)
-data/
+# Data (never commit datasets) — anchored to repo root so it does NOT match
+# the source package src/fbc/data/
+/data/
 *.zip
 
 # Python
