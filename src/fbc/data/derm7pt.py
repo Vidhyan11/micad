@@ -67,6 +67,18 @@ def _group_diagnosis(raw: str) -> str:
 DX_ORDER = ["BCC", "MEL", "NEV", "SK", "MISC"]
 
 
+def _read_index_file(f) -> list[int]:
+    """Robustly read a derm7pt split-index file (delimiter varies; may be
+    comma, tab, or whitespace). Returns the integer indices in the 'ind' column,
+    falling back to the first column if unnamed."""
+    idx_df = pd.read_csv(f, sep=None, engine="python")
+    idx_df.columns = [str(c).strip().lower() for c in idx_df.columns]
+    col = "ind" if "ind" in idx_df.columns else idx_df.columns[0]
+    return (
+        pd.to_numeric(idx_df[col], errors="coerce").dropna().astype(int).tolist()
+    )
+
+
 def _assign_splits(df: pd.DataFrame, paths: dict) -> pd.Series:
     """Official derm7pt splits: index files hold 0-based row indices of meta.csv."""
     split = pd.Series("", index=df.index, dtype=object)
@@ -74,7 +86,7 @@ def _assign_splits(df: pd.DataFrame, paths: dict) -> pd.Series:
         f = paths.get(key)
         if f is None or not f.exists():
             continue
-        idx = pd.read_csv(f)["ind"].astype(int).tolist()
+        idx = _read_index_file(f)
         hit = df.index.intersection(idx)
         split.loc[hit] = name
     return split
