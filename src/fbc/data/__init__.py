@@ -1,5 +1,5 @@
-"""Data layer: canonical concepts, per-dataset loaders, unified schema."""
-from . import concepts, schema
+"""Data layer: canonical concepts, per-dataset loaders, unified schema, splits."""
+from . import concepts, schema, splits
 
 # Loaders (import lazily-safe: they only touch disk when .load() is called).
 from . import derm7pt, pad_ufes, fitzpatrick17k
@@ -11,4 +11,5 @@ LOADERS = {
     # PH2 dropped: available mirrors have images XOR concept labels, never both.
 }
 
-__all__ = ["concepts", "schema", "derm7pt", "pad_ufes", "fitzpatrick17k", "LOADERS"]
+__all__ = ["concepts", "schema", "splits", "derm7pt", "pad_ufes",
+           "fitzpatrick17k", "LOADERS"]
