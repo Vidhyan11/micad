@@ -100,10 +100,35 @@ Re-extraction is only ~5 min, so this is convenience, not critical.
 
 ---
 
+## 6. DermLIP embeddings — primary derm encoder (GPU)
+
+DermLIP is a CLIP-style dermatology model (needed for pseudo-labels; also our
+primary CBM encoder). Install open_clip first, then extract:
+
+```python
+!pip install -q open_clip_torch
+!cd /kaggle/working/micad && git pull -q
+!python /kaggle/working/micad/scripts/extract_embeddings.py --encoder dermlip
+```
+✅ Expect shapes like `(1011, 512)` etc. (DermLIP dim differs from DINOv2's 768).
+Then re-run splits so DermLIP artifacts carry the same protocol:
+```python
+!python /kaggle/working/micad/scripts/make_splits.py --encoder dermlip
+```
+
+## 7. Foundation pseudo-labels + validation (MP)
+
+```python
+!python /kaggle/working/micad/scripts/pseudolabel.py --encoder dermlip
+```
+✅ Expect: a **derm7pt zero-shot concept recovery** table (AUROC/AP per dermoscopic
+concept vs real GT — the evidence that bootstrapping works), plus clinical
+pseudo-concept positive-rates for Fitzpatrick/PAD. Paste this output.
+
+---
+
 ## Steps coming next (not yet runnable — I'll add cells here)
 
-- **MP** — foundation pseudo-labels: bring up DermLIP, validate pseudo-concepts vs
-  derm7pt GT, generate clinical concept labels for Fitzpatrick/PAD.
 - **MM** — train the two CBMs (concept head → diagnosis bottleneck) + baselines
   (Experiment 1: diagnosis + concept accuracy).
 - **MF1** — concept-counterfactual faithfulness (Experiment 2).
