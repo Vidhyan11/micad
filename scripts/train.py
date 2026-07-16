@@ -28,9 +28,14 @@ from fbc.train import train_cbm as T  # noqa: E402
 from fbc.train.data import assemble  # noqa: E402
 from fbc.utils import io  # noqa: E402
 
+# Primary task is CONCEPT-ALIGNED binary detection: the 7-pt checklist detects
+# melanoma; the clinical morphology concepts flag malignancy. binary_positive is a
+# dx_name value. Multiclass is available via --multiclass.
 SPECS = {
-    "A": {"ds": "derm7pt", "use_pseudo": False, "label": "ModelA-dermoscopic(GT)"},
-    "B": {"ds": "fitzpatrick17k", "use_pseudo": True, "label": "ModelB-clinical(pseudo)"},
+    "A": {"ds": "derm7pt", "use_pseudo": False, "label": "ModelA-dermoscopic(GT)",
+          "binary_positive": "MEL"},
+    "B": {"ds": "fitzpatrick17k", "use_pseudo": True, "label": "ModelB-clinical(pseudo)",
+          "binary_positive": "malignant"},
 }
 
 
@@ -55,6 +60,8 @@ def main():
     ap.add_argument("--encoder", default="dermlip")
     ap.add_argument("--models", nargs="*", default=["A", "B"])
     ap.add_argument("--joint", action="store_true", help="also train joint-mode CBM (ablation)")
+    ap.add_argument("--multiclass", action="store_true",
+                    help="use full multiclass dx instead of binary detection")
     args = ap.parse_args()
 
     C.ensure_dirs()
@@ -66,12 +73,17 @@ def main():
     for key in args.models:
         spec = SPECS[key]
         ds = spec["ds"]
-        print(f"\n===== Model {key}: {spec['label']}  ({ds}) =====")
-        data = assemble(ds, args.encoder, use_pseudo=spec["use_pseudo"])
+        binpos = None if args.multiclass else spec["binary_positive"]
+        task = "multiclass" if args.multiclass else f"binary:{binpos}"
+        print(f"\n===== Model {key}: {spec['label']}  ({ds}) | task={task} =====")
+        data = assemble(ds, args.encoder, use_pseudo=spec["use_pseudo"],
+                        binary_positive=binpos)
         ntr = (data.split == "train").sum()
         nte = (data.split == "test").sum()
+        npos = int((data.y[data.split == "test"] == 1).sum()) if data.n_classes == 2 else -1
         print(f"  concepts={data.keys}")
-        print(f"  classes={data.n_classes} | train={ntr} test={nte}")
+        print(f"  classes={data.n_classes} | train={ntr} test={nte}"
+              + (f" (test positives={npos})" if npos >= 0 else ""))
 
         # baseline: image-only
         io_model = T.train_image_only(data, cfg, device)
@@ -81,6 +93,17 @@ def main():
               f"f1={io_dx['f1_macro']:.3f} auroc={io_dx['auroc']:.3f}")
         rows.append({"model": key, "variant": "image-only", "dataset": ds,
                      **{f"dx_{k}": v for k, v in io_dx.items()}, "concept_mean_auroc": np.nan})
+
+        # oracle bottleneck (Model A only — needs real GT concepts): ceiling of the
+        # concept SET, isolating concept-prediction error from concept-set limits.
+        if not spec["use_pseudo"]:
+            _, oracle_logits = T.train_dx_from_concepts(data, cfg, device, use_gt=True)
+            o_dx = M.dx_metrics(data.subset("test")[3], oracle_logits)
+            print(f"  [CBM-oracle(GT concepts)] dx: bal_acc={o_dx['bal_acc']:.3f} "
+                  f"f1={o_dx['f1_macro']:.3f} auroc={o_dx['auroc']:.3f}")
+            rows.append({"model": key, "variant": "CBM-oracle", "dataset": ds,
+                         **{f"dx_{k}": v for k, v in o_dx.items()},
+                         "concept_mean_auroc": np.nan})
 
         # our CBM: sequential (+ optional joint)
         modes = ["sequential"] + (["joint"] if args.joint else [])

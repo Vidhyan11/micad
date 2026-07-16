@@ -90,6 +90,37 @@ def train_image_only(data: Assembled, cfg, device="cuda") -> ImageOnly:
     return model
 
 
+def train_dx_from_concepts(data: Assembled, cfg, device="cuda", use_gt=True):
+    """Train a diagnosis head DIRECTLY on concept vectors (not embeddings).
+
+    use_gt=True feeds ground-truth/target concepts -> the ORACLE bottleneck, i.e.
+    the accuracy ceiling of the concept set itself. Returns (MLP, test_logits_np).
+    """
+    from ..models import MLP
+    seed_everything(cfg.seed)
+    _, Ctr, _, ytr = data.subset("train")
+    _, Cva, _, yva = data.subset("val")
+    _, Cte, _, yte = data.subset("test")
+    Ctr, ytr, Cva, yva, Cte = _to(device, Ctr, ytr, Cva, yva, Cte)
+    head = MLP(len(data.keys), cfg.diagnosis_hidden, data.n_classes, cfg.dropout).to(device)
+    cw = _class_weights(ytr, data.n_classes)
+    g = torch.Generator().manual_seed(cfg.seed)
+
+    def step(opt):
+        for idx in _iterate(len(Ctr), cfg.batch_size, g):
+            opt.zero_grad()
+            loss = losses.diagnosis_ce(head(Ctr[idx]), ytr[idx], weight=cw)
+            loss.backward(); opt.step()
+
+    def val():
+        return _balanced_acc(head(Cva).argmax(1), yva, data.n_classes)
+
+    _fit(head, head.parameters(), step, val, cfg.epochs_diagnosis, cfg.lr, cfg.weight_decay)
+    with torch.no_grad():
+        test_logits = head(Cte).cpu().numpy()
+    return head, test_logits
+
+
 def _new_cbm(data, cfg, emb_dim, device):
     return CBM(emb_dim, len(data.keys), data.n_classes,
               cfg.concept_hidden, cfg.diagnosis_hidden, cfg.dropout).to(device)

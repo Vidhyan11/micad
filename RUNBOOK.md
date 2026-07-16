@@ -133,13 +133,14 @@ pseudo-concept positive-rates for Fitzpatrick/PAD. Paste this output.
 !cd /kaggle/working/micad && git pull -q
 !python /kaggle/working/micad/scripts/train.py --encoder dermlip
 ```
-Add `--joint` to also train the joint-mode ablation.
+Flags: `--joint` (joint-mode ablation), `--multiclass` (full multiclass instead of
+the default concept-aligned binary detection).
 
-✅ Expect an **Experiment 1 table**: for Model A (derm7pt, real GT concepts) and
-Model B (Fitzpatrick17k, pseudo concepts) — diagnosis bal-acc/F1/AUROC for
-image-only vs CBM, plus concept mean AUROC. The CBM should stay competitive with
-image-only (the bottleneck's accuracy cost) while adding interpretable concepts.
-Paste this output.
+✅ Expect an **Experiment 1 table**. Primary task is concept-aligned **binary
+detection** — Model A: melanoma vs rest (what the 7-pt checklist is for); Model B:
+malignant vs rest. Rows: image-only, CBM-sequential, and (Model A) CBM-oracle
+(GT concepts → dx = concept-set ceiling). The CBM should now track image-only
+closely. Paste this output.
 
 ---
 

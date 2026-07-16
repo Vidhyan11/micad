@@ -30,7 +30,10 @@ class Assembled:
         return (self.emb[m], self.concept_targets[m], self.concept_mask[m], self.y[m])
 
 
-def assemble(ds: str, encoder: str, use_pseudo: bool) -> Assembled:
+def assemble(ds: str, encoder: str, use_pseudo: bool,
+             binary_positive: str | None = None) -> Assembled:
+    """Assemble tensors. If binary_positive is a dx_name (e.g. 'MEL', 'malignant'),
+    the task becomes binary detection (that class vs rest); else full multiclass."""
     df = pd.read_parquet(io.meta_path(ds))
     emb = np.load(io.emb_path(ds, encoder))
     assert len(df) == len(emb), f"{ds}: meta/emb length mismatch"
@@ -48,6 +51,13 @@ def assemble(ds: str, encoder: str, use_pseudo: bool) -> Assembled:
         mask = df[[S.mask_col(k) for k in keys]].to_numpy(np.float32)
         targets = np.nan_to_num(targets)
 
+    if binary_positive is not None:
+        y_all = (df["dx_name"].astype(str) == binary_positive).astype(np.int64).to_numpy()
+        n_classes = 2
+    else:
+        y_all = df["dx_label"].to_numpy().astype(np.int64)
+        n_classes = int(df["dx_label"].max()) + 1
+
     keep = df["is_dup_rep"].to_numpy(bool)
     if "emb_valid" in df.columns:
         keep &= df["emb_valid"].to_numpy(bool)
@@ -56,8 +66,8 @@ def assemble(ds: str, encoder: str, use_pseudo: bool) -> Assembled:
         emb=emb[keep].astype(np.float32),
         concept_targets=targets[keep],
         concept_mask=mask[keep],
-        y=df["dx_label"].to_numpy()[keep].astype(np.int64),
+        y=y_all[keep],
         split=df["split"].to_numpy().astype(str)[keep],
         keys=list(keys),
-        n_classes=int(df["dx_label"].max()) + 1,
+        n_classes=n_classes,
     )
