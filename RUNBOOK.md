@@ -181,9 +181,23 @@ the lightweight mitigation when retraining isn't possible. Paste both outputs.
 
 ---
 
-## Steps coming next (not yet runnable — I'll add cells here)
+## 11. Paper tables + qualitative figure (MR)
 
-- **MR** — tables + figures (regenerate all experiment tables + qualitative panels).
+Run after E1/E2/E3 (needs their CSVs). Regenerates LaTeX tables + a
+concept-counterfactual figure:
+```python
+!cd /kaggle/working/micad && git pull -q
+!python /kaggle/working/micad/scripts/make_report.py --encoder dermlip
+```
+✅ Writes `results/*_table.tex` and `figures/qualitative_melanoma.png`. To download
+from Kaggle: they're under `/kaggle/working/artifacts/` (Save Version to persist).
+
+---
+
+## Steps coming next
+
+- **Exp 4a** — encoder ablation (DINOv2 vs DermLIP).
+- **Paper draft** — MICAD manuscript from the numbers above.
 
 This RUNBOOK is updated as each step lands — `git pull` and re-read the bottom.
 
