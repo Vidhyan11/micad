@@ -79,12 +79,22 @@ def main():
             continue
         emb = np.load(emb_f)
         df = pd.read_parquet(meta_f)
+        # Refresh GT (concept + mask cols) from a fresh loader, aligned by uid, so
+        # newly-added metadata GT (e.g. PAD-UFES elevation/diameter) is picked up
+        # without re-extracting embeddings.
+        gt = LOADERS[ds](verbose=False).set_index("uid")
+        gt_cols = [S.concept_col(k) for k in CC.CONCEPT_KEYS] + \
+                  [S.mask_col(k) for k in CC.CONCEPT_KEYS]
+        for col in gt_cols:
+            if col in gt.columns:
+                df[col] = df["uid"].map(gt[col])
         probs = enc.zeroshot_concepts(emb, temperature=args.temperature)  # (N, 15)
         np.save(pseudo_path(ds, args.encoder), probs)
         print(f"[{ds}] pseudo-labels {probs.shape} -> {pseudo_path(ds, args.encoder).name}")
 
         domain = CC.DATASET_DOMAIN.get(ds)
-        # validate where we have GT (derm7pt dermoscopic concepts)
+        report[ds] = {}
+        # (1) validate where we have GT (derm7pt dermoscopic; PAD elevation/diameter)
         val = validate_against_gt(df, probs)
         if val:
             print(f"[{ds}] zero-shot concept recovery vs GT ({args.encoder}):")
@@ -94,15 +104,15 @@ def main():
                       f"{v['auroc']:6.3f} {v['ap']:6.3f}")
             mean_auroc = float(np.mean([v["auroc"] for v in val.values()]))
             print(f"  mean AUROC = {mean_auroc:.3f}")
-            report[ds] = {"mean_auroc": mean_auroc, "per_concept": val}
-        else:
-            # clinical datasets: report pseudo positive-rate for its vocabulary
+            report[ds].update(mean_auroc=mean_auroc, per_concept=val)
+        # (2) clinical-domain datasets: report full clinical pseudo positive-rates
+        if domain == "clinical":
             clin = {k: float((probs[:, CC.index_of(k)] > 0.5).mean())
                     for k in CC.CLINICAL_KEYS}
-            print(f"[{ds}] clinical pseudo-concept positive-rate (domain={domain}):")
+            print(f"[{ds}] clinical pseudo-concept positive-rate:")
             for k, v in clin.items():
                 print(f"  {k:24s} {v*100:5.1f}%")
-            report[ds] = {"clinical_pos_rate": clin}
+            report[ds]["clinical_pos_rate"] = clin
 
     io.save_json(report, C.RESULT_DIR / f"pseudolabel_report_{args.encoder}.json")
     print(f"\nreport -> {C.RESULT_DIR / f'pseudolabel_report_{args.encoder}.json'}")

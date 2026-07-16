@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from PIL import Image
 
-from ..data.concepts import CONCEPTS
+from ..data.concepts import CONCEPTS, prompt_sets
 from .base import Encoder
 
 
@@ -39,16 +39,19 @@ class OpenClipEncoder(Encoder):
         return feat.float().cpu().numpy()
 
     @torch.no_grad()
-    def _encode_text(self, prompts: list[str]) -> torch.Tensor:
+    def _encode_text_mean(self, prompts: list[str]) -> torch.Tensor:
+        """Ensemble: encode each prompt, L2-normalize, average, re-normalize -> (d,)."""
         toks = self.tokenizer(prompts).to(self.device)
         t = self.model.encode_text(toks)
-        return t / t.norm(dim=-1, keepdim=True)
+        t = t / t.norm(dim=-1, keepdim=True)
+        m = t.mean(dim=0)
+        return m / m.norm()
 
     @torch.no_grad()
     def zeroshot_concepts(
         self, image_embeddings: np.ndarray, temperature: float = 0.01
     ) -> np.ndarray:
-        """Score each canonical concept from its pos/neg prompt pair.
+        """Score each canonical concept via prompt-ensembled pos/neg text anchors.
 
         Returns (N, K) probabilities: softmax over {neg, pos} similarity, pos column.
         Assumes `image_embeddings` are L2-normalized (as embed_paths produces).
@@ -57,10 +60,12 @@ class OpenClipEncoder(Encoder):
         img = img / img.norm(dim=-1, keepdim=True)
         probs = np.zeros((img.shape[0], len(CONCEPTS)), dtype=np.float32)
         for ci, c in enumerate(CONCEPTS):
-            txt = self._encode_text([c.prompt_neg, c.prompt_pos])   # (2, d)
-            logits = (img @ txt.T) / temperature                    # (N, 2)
-            p = torch.softmax(logits, dim=-1)[:, 1]                 # P(pos)
-            probs[:, ci] = p.cpu().numpy()
+            pos_prompts, neg_prompts = prompt_sets(c)
+            pos = self._encode_text_mean(pos_prompts)               # (d,)
+            neg = self._encode_text_mean(neg_prompts)               # (d,)
+            anchors = torch.stack([neg, pos], dim=0)                # (2, d)
+            logits = (img @ anchors.T) / temperature                # (N, 2)
+            probs[:, ci] = torch.softmax(logits, dim=-1)[:, 1].cpu().numpy()
         return probs
 
 

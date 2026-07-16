@@ -25,6 +25,29 @@ def _fst_group(fitz: float) -> str:
     return ""
 
 
+def _as_bool01(v) -> float | None:
+    """Coerce PAD-UFES boolean-ish metadata to {0.0, 1.0} or None if missing."""
+    if v is None or (isinstance(v, float) and np.isnan(v)):
+        return None
+    s = str(v).strip().lower()
+    if s in ("true", "1", "yes", "1.0"):
+        return 1.0
+    if s in ("false", "0", "no", "0.0"):
+        return 0.0
+    return None
+
+
+def _large_diameter(d1, d2) -> float | None:
+    """ABCD 'D': lesion > 6 mm. Uses the larger of the two diameters."""
+    vals = [x for x in (d1, d2) if x is not None and not (isinstance(x, float) and np.isnan(x))]
+    if not vals:
+        return None
+    try:
+        return 1.0 if max(float(v) for v in vals) > 6.0 else 0.0
+    except (TypeError, ValueError):
+        return None
+
+
 def _build_image_index(images_root) -> dict[str, str]:
     """Map image filename -> absolute path (scan imgs_part_* once)."""
     idx: dict[str, str] = {}
@@ -74,10 +97,19 @@ def load(verbose: bool = True) -> pd.DataFrame:
             lesion_id=str(r.get("lesion_id", f"pad_les_{i}")),
             split="",
         )
-        # no concept GT in PAD-UFES -> unknown, mask 0 (pseudo-labels fill later)
+        # no dermoscopic concept GT; clinical concepts mostly pseudo-labeled later.
         for key in C.CONCEPT_KEYS:
             rec[S.concept_col(key)] = np.nan
             rec[S.mask_col(key)] = 0
+        # PARTIAL clinical GT from metadata -> used to VALIDATE pseudo-labels (MP).
+        elev = _as_bool01(r.get("elevation"))
+        if elev is not None:
+            rec[S.concept_col("elevation")] = elev
+            rec[S.mask_col("elevation")] = 1
+        ld = _large_diameter(r.get("diameter_1"), r.get("diameter_2"))
+        if ld is not None:
+            rec[S.concept_col("large_diameter")] = ld
+            rec[S.mask_col("large_diameter")] = 1
         rows.append(rec)
 
     df = S.validate(pd.DataFrame(rows))

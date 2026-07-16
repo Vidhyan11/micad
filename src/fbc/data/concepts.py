@@ -10,7 +10,9 @@ Every dataset row carries the full union of concept/mask columns (see schema.py)
 per-dataset masks mark which concepts are annotated. Each model reads only its
 own vocabulary subset (DERMOSCOPIC_KEYS or CLINICAL_KEYS).
 
-Zero-shot pos/neg prompt pairs drive the foundation pseudo-labeler (MP).
+Zero-shot scoring (MP) uses PROMPT ENSEMBLING: each concept has a short positive
+and negative phrase, expanded over several domain templates and averaged — more
+robust than a single sentence.
 """
 from __future__ import annotations
 
@@ -21,62 +23,72 @@ from dataclasses import dataclass
 class Concept:
     key: str
     name: str
-    prompt_pos: str
-    prompt_neg: str
+    pos_phrase: str      # bare phrase, filled into templates
+    neg_phrase: str
     domain: str          # "dermoscopic" | "clinical"
+
+
+# Prompt templates per domain (ensembled + averaged in encoders/clip_encoder.py).
+TEMPLATES: dict[str, list[str]] = {
+    "dermoscopic": [
+        "dermoscopy of {}",
+        "a dermoscopic image of {}",
+        "dermoscopy showing {}",
+        "a dermoscopic image with {}",
+    ],
+    "clinical": [
+        "a photo of {}",
+        "a clinical photograph of {}",
+        "a skin lesion with {}",
+        "a dermatology photo showing {}",
+    ],
+}
+
+
+def prompt_sets(concept: Concept) -> tuple[list[str], list[str]]:
+    """(positive_prompts, negative_prompts) for a concept, ensembled over templates."""
+    tpls = TEMPLATES[concept.domain]
+    pos = [t.format(concept.pos_phrase) for t in tpls]
+    neg = [t.format(concept.neg_phrase) for t in tpls]
+    return pos, neg
 
 
 # --- Model A: dermoscopic 7-point checklist (derm7pt GT) -------------------- #
 DERMOSCOPIC_CONCEPTS: list[Concept] = [
     Concept("pigment_network", "Pigment network",
-            "dermoscopy showing an atypical pigment network",
-            "dermoscopy with a typical or absent pigment network", "dermoscopic"),
+            "an atypical pigment network", "a typical pigment network", "dermoscopic"),
     Concept("blue_whitish_veil", "Blue-whitish veil",
-            "dermoscopy showing a blue-whitish veil",
-            "dermoscopy with no blue-whitish veil", "dermoscopic"),
+            "a blue-whitish veil", "no blue-whitish veil", "dermoscopic"),
     Concept("vascular_structures", "Vascular structures",
-            "dermoscopy showing atypical vascular structures",
-            "dermoscopy with no atypical vascular structures", "dermoscopic"),
+            "atypical vessels", "no atypical vessels", "dermoscopic"),
     Concept("pigmentation", "Pigmentation",
-            "dermoscopy showing irregular pigmentation",
-            "dermoscopy with regular or absent pigmentation", "dermoscopic"),
+            "irregular pigmentation", "regular pigmentation", "dermoscopic"),
     Concept("streaks", "Streaks",
-            "dermoscopy showing irregular streaks",
-            "dermoscopy with no streaks", "dermoscopic"),
+            "irregular streaks", "no streaks", "dermoscopic"),
     Concept("dots_globules", "Dots and globules",
-            "dermoscopy showing irregular dots and globules",
-            "dermoscopy with regular or absent dots and globules", "dermoscopic"),
+            "irregular dots and globules", "regular dots and globules", "dermoscopic"),
     Concept("regression_structures", "Regression structures",
-            "dermoscopy showing regression structures",
-            "dermoscopy with no regression structures", "dermoscopic"),
+            "regression structures", "no regression structures", "dermoscopic"),
 ]
 
 # --- Model B: clinical ABCD + morphology (foundation-bootstrapped) ---------- #
 CLINICAL_CONCEPTS: list[Concept] = [
     Concept("asymmetry", "Asymmetry",
-            "an asymmetric skin lesion",
-            "a symmetric skin lesion", "clinical"),
+            "an asymmetric shape", "a symmetric round shape", "clinical"),
     Concept("border_irregularity", "Border irregularity",
-            "a skin lesion with an irregular, poorly defined border",
-            "a skin lesion with a regular, well-defined border", "clinical"),
+            "an irregular ragged border", "a smooth well-defined border", "clinical"),
     Concept("color_variegation", "Color variegation",
-            "a skin lesion with multiple colors",
-            "a skin lesion with a single uniform color", "clinical"),
+            "several different colors", "one uniform color", "clinical"),
     Concept("large_diameter", "Large diameter",
-            "a large skin lesion",
-            "a small skin lesion", "clinical"),
+            "a large wide lesion", "a small lesion", "clinical"),
     Concept("elevation", "Elevation",
-            "a raised or elevated skin lesion",
-            "a flat skin lesion", "clinical"),
+            "a raised bumpy surface", "a flat surface", "clinical"),
     Concept("ulceration", "Ulceration",
-            "a skin lesion with ulceration or bleeding",
-            "a skin lesion with intact surface", "clinical"),
+            "an open ulcer or bleeding", "intact unbroken skin", "clinical"),
     Concept("scale", "Scale/crust",
-            "a skin lesion with scale or crust",
-            "a smooth skin lesion without scale", "clinical"),
+            "dry scale or crust", "a smooth surface without scale", "clinical"),
     Concept("erythema", "Erythema",
-            "a red, inflamed skin lesion",
-            "a skin lesion without redness", "clinical"),
+            "red inflamed skin", "normal skin color", "clinical"),
 ]
 
 # Union (dermoscopic first). Index in CONCEPTS == index in the concept vector.
@@ -111,8 +123,9 @@ def mask_for(available_keys: list[str]) -> list[int]:
 # Which concepts each dataset provides as GT (others -> foundation pseudo-labels).
 DATASET_GT_CONCEPTS: dict[str, list[str]] = {
     "derm7pt": DERMOSCOPIC_KEYS,          # real 7-pt GT
-    "fitzpatrick17k": [],                 # clinical concepts via pseudo-labels
-    "pad_ufes_20": [],                    # clinical concepts via pseudo-labels
+    # PAD-UFES metadata gives partial clinical GT (used to VALIDATE pseudo-labels):
+    "pad_ufes_20": ["elevation", "large_diameter"],
+    "fitzpatrick17k": [],                 # clinical concepts via pseudo-labels only
 }
 
 # Which concept vocabulary each dataset/model operates in.
