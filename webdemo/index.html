@@ -1,0 +1,364 @@
+<title>Faithful-by-Concept — interactive demo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --paper:#f2f6f6; --panel:#ffffff; --ink:#0f1e1d; --muted:#4a5f5d;
+    --line:#d7e2e0; --accent:#0d7d74; --accent-soft:#d3e8e5;
+    --good:#2f9e6b; --warn:#d99a2b; --crit:#d1495b;
+    --shadow:0 1px 2px rgba(15,30,29,.06),0 6px 24px rgba(15,30,29,.06);
+    --serif:Georgia,"Times New Roman",serif;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --paper:#0c1a1c; --panel:#12262a; --ink:#e8f1ef; --muted:#8fa8a4;
+      --line:#22403f; --accent:#3fb8ab; --accent-soft:#173430;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"]{
+    --paper:#f2f6f6; --panel:#ffffff; --ink:#0f1e1d; --muted:#4a5f5d;
+    --line:#d7e2e0; --accent:#0d7d74; --accent-soft:#d3e8e5; --shadow:0 1px 2px rgba(15,30,29,.06),0 6px 24px rgba(15,30,29,.06);
+  }
+  :root[data-theme="dark"]{
+    --paper:#0c1a1c; --panel:#12262a; --ink:#e8f1ef; --muted:#8fa8a4;
+    --line:#22403f; --accent:#3fb8ab; --accent-soft:#173430; --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 30px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+    line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1060px;margin:0 auto;padding:0 20px}
+  a{color:var(--accent)}
+  h1,h2,h3{font-family:var(--serif);font-weight:600;text-wrap:balance;letter-spacing:-.01em}
+  .eyebrow{font-family:var(--mono);font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent)}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+  /* top bar */
+  header{border-bottom:1px solid var(--line);position:sticky;top:0;background:color-mix(in srgb,var(--paper) 88%,transparent);backdrop-filter:blur(8px);z-index:5}
+  .bar{display:flex;align-items:center;justify-content:space-between;padding:12px 0}
+  .brand{display:flex;align-items:center;gap:10px;font-family:var(--serif);font-weight:600}
+  .dot{width:14px;height:14px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+  .tbtn{font:inherit;font-size:.8rem;color:var(--muted);background:none;border:1px solid var(--line);
+    border-radius:20px;padding:5px 12px;cursor:pointer}
+  .tbtn:hover{color:var(--ink);border-color:var(--accent)}
+
+  /* disclaimer */
+  .note{background:var(--accent-soft);border:1px solid var(--line);border-radius:10px;
+    padding:10px 14px;font-size:.82rem;color:var(--muted);margin:16px 0}
+  .note b{color:var(--ink)}
+
+  /* hero */
+  .hero{padding:34px 0 10px}
+  .hero h1{font-size:clamp(2rem,5vw,3.1rem);line-height:1.05;margin:.2em 0 .3em}
+  .hero p{font-size:1.08rem;color:var(--muted);max-width:60ch}
+
+  /* pipeline */
+  .pipe{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch;margin:22px 0 8px}
+  .step{flex:1;min-width:120px;background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:12px;box-shadow:var(--shadow)}
+  .step .k{font-family:var(--mono);font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+  .step .t{font-weight:600;font-size:.92rem;margin-top:3px}
+  .step .d{font-size:.78rem;color:var(--muted);margin-top:3px}
+  .arrow{align-self:center;color:var(--muted);font-size:1.1rem;padding:0 2px}
+
+  section{padding:26px 0}
+  .sec-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+  .sec-head h2{font-size:1.5rem;margin:0}
+
+  /* console */
+  .console{display:grid;grid-template-columns:1.15fr .85fr;gap:18px}
+  @media(max-width:820px){.console{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow)}
+  .controls-top{display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{font:inherit;font-size:.8rem;border:1px solid var(--line);background:transparent;color:var(--muted);
+    border-radius:20px;padding:6px 12px;cursor:pointer}
+  .chip[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .toggle{display:flex;border:1px solid var(--line);border-radius:20px;overflow:hidden}
+  .toggle button{font:inherit;font-size:.78rem;padding:6px 12px;border:none;background:transparent;color:var(--muted);cursor:pointer}
+  .toggle button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+
+  .concept{display:grid;grid-template-columns:1fr auto;gap:4px 10px;padding:9px 0;border-top:1px solid var(--line)}
+  .concept:first-of-type{border-top:none}
+  .concept .name{font-size:.9rem;font-weight:500}
+  .concept .val{font-family:var(--mono);font-size:.82rem;color:var(--muted);text-align:right}
+  .concept .rowb{grid-column:1/3;display:flex;align-items:center;gap:10px}
+  input[type=range]{flex:1;accent-color:var(--accent);height:4px}
+  .flip{font:inherit;font-size:.72rem;font-family:var(--mono);border:1px solid var(--line);background:transparent;
+    color:var(--muted);border-radius:6px;padding:3px 8px;cursor:pointer;white-space:nowrap}
+  .flip:hover{border-color:var(--accent);color:var(--accent)}
+  .decisive{outline:2px solid var(--crit);border-radius:8px}
+  .decisive .name::after{content:" · decisive";color:var(--crit);font-family:var(--mono);font-size:.7rem}
+
+  .btnrow{display:flex;gap:8px;margin-top:12px}
+  .btn{font:inherit;font-size:.8rem;border:1px solid var(--line);background:transparent;color:var(--ink);
+    border-radius:8px;padding:7px 12px;cursor:pointer}
+  .btn:hover{border-color:var(--accent)}
+
+  /* gauge */
+  .verdict{display:inline-block;font-family:var(--mono);font-size:.74rem;letter-spacing:.08em;text-transform:uppercase;
+    padding:4px 10px;border-radius:20px;font-weight:600}
+  .prob{font-family:var(--mono);font-size:2.8rem;font-weight:600;line-height:1;margin:6px 0;font-variant-numeric:tabular-nums}
+  .track{height:12px;border-radius:8px;background:linear-gradient(90deg,var(--good) 0%,var(--warn) 55%,var(--crit) 100%);position:relative;margin:12px 0 4px}
+  .needle{position:absolute;top:-4px;width:4px;height:20px;background:var(--ink);border-radius:2px;transform:translateX(-2px);transition:left .35s cubic-bezier(.2,.7,.2,1)}
+  .scale{display:flex;justify-content:space-between;font-family:var(--mono);font-size:.66rem;color:var(--muted)}
+  .metric{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+  .metric .lab{font-size:.8rem;color:var(--muted);display:flex;justify-content:space-between}
+  .meter{height:8px;background:var(--line);border-radius:6px;overflow:hidden;margin-top:6px}
+  .meter i{display:block;height:100%;background:var(--accent);transition:width .35s}
+  .callout{margin-top:14px;font-size:.86rem;padding:12px;border-radius:10px;border:1px solid var(--line)}
+  .callout.ok{background:color-mix(in srgb,var(--good) 12%,transparent)}
+  .callout.bad{background:color-mix(in srgb,var(--crit) 12%,transparent)}
+  .callout b{font-family:var(--serif)}
+
+  /* fairness */
+  .fair{display:flex;gap:16px;flex-wrap:wrap}
+  .fbar{flex:1;min-width:150px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;box-shadow:var(--shadow)}
+  .fbar .g{font-family:var(--mono);font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+  .fbar .n{font-family:var(--mono);font-size:1.5rem;font-weight:600;margin:2px 0}
+  .fbar .track2{height:8px;background:var(--line);border-radius:6px;overflow:hidden;margin-top:6px}
+  .fbar .track2 i{display:block;height:100%;background:var(--accent)}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:720px){.grid2{grid-template-columns:1fr}}
+  footer{border-top:1px solid var(--line);margin-top:20px;padding:22px 0;color:var(--muted);font-size:.82rem}
+  code{font-family:var(--mono);background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:.85em}
+</style>
+
+<header><div class="wrap bar">
+  <div class="brand"><span class="dot"></span> Faithful-by-Concept</div>
+  <button class="tbtn" id="theme">◐ theme</button>
+</div></header>
+
+<div class="wrap">
+
+  <div class="note"><b>Research demonstration.</b> Illustrative data and a simplified
+  model to show how the system behaves. Not a medical device; not for clinical use.</div>
+
+  <div class="hero">
+    <div class="eyebrow">Concept reasoning you can interrogate</div>
+    <h1>An AI that diagnoses skin lesions — and lets you check whether it means what it says.</h1>
+    <p>It reasons through the same clues a dermatologist uses. Change a clue and the
+    diagnosis changes accordingly — <em>if</em> the model is genuinely reasoning through
+    concepts. Toggle to a “leaky” model below and watch the difference.</p>
+  </div>
+
+  <div class="pipe">
+    <div class="step"><div class="k">1 · Input</div><div class="t">Lesion image</div><div class="d">Dermoscopic or clinical photo</div></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="k">2 · Frozen</div><div class="t">Foundation encoder</div><div class="d">DermLIP — weights never trained</div></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="k">3 · Bottleneck</div><div class="t">Concept scores</div><div class="d">7-point dermatology checklist</div></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="k">4 · Decision</div><div class="t">Diagnosis</div><div class="d">From concepts <em>only</em></div></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="k">5 · Audit</div><div class="t">Faithfulness</div><div class="d">Flip a concept, measure change</div></div>
+  </div>
+
+  <section>
+    <div class="sec-head"><div class="eyebrow">Live console</div><h2>Interrogate the reasoning</h2></div>
+    <div class="controls-top">
+      <div class="chips" id="cases" role="group" aria-label="Example cases">
+        <button class="chip" data-case="0" aria-pressed="true">Melanoma (high-risk)</button>
+        <button class="chip" data-case="1" aria-pressed="false">Atypical (borderline)</button>
+        <button class="chip" data-case="2" aria-pressed="false">Benign nevus</button>
+      </div>
+      <div class="toggle" id="model" role="group" aria-label="Model type">
+        <button data-m="faithful" aria-pressed="true">Faithful-by-Concept</button>
+        <button data-m="leaky" aria-pressed="false">Leaky black-box</button>
+      </div>
+    </div>
+
+    <div class="console">
+      <div class="card">
+        <div class="eyebrow" style="margin-bottom:8px">Dermatologist concepts (7-point checklist)</div>
+        <div id="concepts"></div>
+        <div class="btnrow">
+          <button class="btn" id="reset">↺ Reset case</button>
+          <button class="btn" id="neutral">Neutralize all concepts</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="eyebrow" style="margin-bottom:6px">Diagnosis</div>
+        <span class="verdict" id="verdict">—</span>
+        <div class="prob" id="prob">—</div>
+        <div style="font-size:.8rem;color:var(--muted)">estimated probability of melanoma</div>
+        <div class="track"><div class="needle" id="needle" style="left:0%"></div></div>
+        <div class="scale"><span>benign</span><span>watch</span><span>refer</span></div>
+
+        <div class="metric">
+          <div class="lab"><span>Concept reliance</span><span class="mono" id="relv">—</span></div>
+          <div class="meter"><i id="relbar" style="width:0%"></i></div>
+          <div style="font-size:.76rem;color:var(--muted);margin-top:4px">
+            How much the decision actually depends on the concepts (drop if all concepts are neutralized).</div>
+        </div>
+
+        <div class="callout" id="callout"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><div class="eyebrow">Contribution 1</div><h2>Faithful vs. fake explanations</h2></div>
+    <div class="grid2">
+      <div class="card"><h3 style="margin:.1em 0 .3em;font-size:1.1rem">Try it</h3>
+        <p style="color:var(--muted);font-size:.92rem;margin:0">Pick the <b>high-risk</b> case. Click <em>Flip</em>
+        on <b>Atypical pigment network</b>. In <b>Faithful-by-Concept</b> the melanoma probability drops sharply — the
+        concept genuinely drove the decision. Switch to the <b>Leaky black-box</b> and flip the same concept:
+        the probability barely moves. It <em>shows</em> concepts but doesn’t use them — an unfaithful explanation
+        that today’s methods never catch.</p></div>
+      <div class="card"><h3 style="margin:.1em 0 .3em;font-size:1.1rem">What we measure</h3>
+        <ul style="color:var(--muted);font-size:.92rem;margin:.2em 0;padding-left:1.1em">
+          <li><b>Reliance</b> — decision change when concepts are removed. Pure model 0.22; leaky ≈ 0.</li>
+          <li><b>Comprehensiveness</b> — does removing the <em>stated-important</em> concepts change the call?</li>
+          <li>The gap between the two models is statistically significant (95% CI).</li>
+        </ul></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><div class="eyebrow">Contribution 3</div><h2>Is the reasoning fair across skin tones?</h2></div>
+    <p style="color:var(--muted);max-width:64ch;margin:.2em 0 16px">First audit of whether concept faithfulness holds
+    across Fitzpatrick skin tones. Result: reasoning is <b>statistically equitable</b> — reliance is comparable
+    for light, medium and dark skin (values from the paper, diverse-training model).</p>
+    <div class="fair">
+      <div class="fbar"><div class="g">Fitzpatrick I–II · light</div><div class="n">0.197</div>
+        <div class="track2"><i style="width:79%"></i></div><div style="font-size:.74rem;color:var(--muted);margin-top:5px">reliance</div></div>
+      <div class="fbar"><div class="g">Fitzpatrick III–IV</div><div class="n">0.221</div>
+        <div class="track2"><i style="width:88%"></i></div><div style="font-size:.74rem;color:var(--muted);margin-top:5px">reliance</div></div>
+      <div class="fbar"><div class="g">Fitzpatrick V–VI · dark</div><div class="n">0.217</div>
+        <div class="track2"><i style="width:87%"></i></div><div style="font-size:.74rem;color:var(--muted);margin-top:5px">reliance</div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><div class="eyebrow">How the work is done</div><h2>Under the hood</h2></div>
+    <div class="grid2">
+      <div class="card"><h3 style="margin:.1em 0 .3em;font-size:1.05rem">Cheap by design</h3>
+      <p style="color:var(--muted);font-size:.92rem;margin:0">A frozen dermatology foundation model turns each image
+      into an embedding once. Only two tiny networks train: <em>concepts → </em> and <em>concepts → diagnosis</em>.
+      Runs on a single free GPU.</p></div>
+      <div class="card"><h3 style="margin:.1em 0 .3em;font-size:1.05rem">The bottleneck is the point</h3>
+      <p style="color:var(--muted);font-size:.92rem;margin:0">The diagnosis head sees <em>only</em> the concept scores —
+      never the raw image features. That is what makes the counterfactual test meaningful: the decision can only
+      change through the concepts.</p></div>
+    </div>
+  </section>
+
+  <footer>
+    Faithful-by-Concept · MICAD 2026 research prototype · illustrative demo, not a clinical tool.
+    Numbers shown for concepts/probabilities are simulated for demonstration; the fairness figures reflect the paper’s measured results.
+  </footer>
+</div>
+
+<script>
+(function(){
+  const CONCEPTS=[
+    {name:"Atypical pigment network",w:2.2},
+    {name:"Blue-whitish veil",w:2.2},
+    {name:"Atypical vascular structures",w:2.2},
+    {name:"Irregular pigmentation",w:1.0},
+    {name:"Irregular streaks",w:1.0},
+    {name:"Irregular dots & globules",w:1.0},
+    {name:"Regression structures",w:1.0},
+  ];
+  const CASES=[
+    [0.86,0.80,0.55,0.72,0.63,0.68,0.58],
+    [0.58,0.30,0.35,0.50,0.45,0.55,0.32],
+    [0.12,0.06,0.10,0.18,0.08,0.28,0.10],
+  ];
+  const A=0.9, B=4.6;                 // faithful: logit = A*Σ(w·c) - B
+  const sig=x=>1/(1+Math.exp(-x));
+  const wsum=c=>c.reduce((s,v,i)=>s+CONCEPTS[i].w*v,0);
+  const faithLogit=c=>A*wsum(c)-B;
+
+  let state={caseIdx:0, c:CASES[0].slice(), model:"faithful", E:0, decisive:-1};
+  function setE(){ // leaky "image evidence" fixed at diagnosis time so p≈faithful initially
+    const c0=CASES[state.caseIdx];
+    state.E = faithLogit(c0) - 0.2*wsum(c0) + 1.0;
+  }
+  const logit=c=> state.model==="faithful" ? faithLogit(c) : (0.2*wsum(c)+state.E-1.0);
+  const prob=c=>sig(logit(c));
+
+  // build concept rows
+  const cbox=document.getElementById('concepts');
+  CONCEPTS.forEach((cc,i)=>{
+    const row=document.createElement('div'); row.className='concept'; row.dataset.i=i;
+    row.innerHTML=`<div class="name">${cc.name}</div><div class="val" id="v${i}">0%</div>
+      <div class="rowb"><input type="range" min="0" max="100" id="s${i}" aria-label="${cc.name}">
+      <button class="flip" data-i="${i}">Flip</button></div>`;
+    cbox.appendChild(row);
+  });
+
+  function neutralProb(){ return sig(logit([.5,.5,.5,.5,.5,.5,.5])); }
+
+  function render(){
+    const c=state.c, p=prob(c);
+    document.getElementById('prob').textContent=(p*100).toFixed(0)+'%';
+    const nd=document.getElementById('needle'); nd.style.left=(p*100)+'%';
+    const v=document.getElementById('verdict');
+    let label,col;
+    if(p<0.33){label='Benign';col='var(--good)';}
+    else if(p<0.66){label='Watch';col='var(--warn)';}
+    else{label='Refer';col='var(--crit)';}
+    v.textContent=label; v.style.background='color-mix(in srgb,'+col+' 20%,transparent)'; v.style.color=col;
+    // sliders + values
+    c.forEach((val,i)=>{document.getElementById('s'+i).value=Math.round(val*100);
+      document.getElementById('v'+i).textContent=Math.round(val*100)+'%';});
+    // reliance = |p - p(neutral)|
+    const rel=Math.abs(p-neutralProb());
+    document.getElementById('relv').textContent=rel.toFixed(2);
+    document.getElementById('relbar').style.width=Math.min(100,rel/0.4*100)+'%';
+    // decisive highlight
+    document.querySelectorAll('.concept').forEach((el,i)=>el.classList.toggle('decisive',i===state.decisive));
+    // callout
+    const co=document.getElementById('callout');
+    if(state.model==='faithful'){co.className='callout ok';
+      co.innerHTML='<b>Faithful.</b> The decision flows only through the concepts — flip one and the diagnosis responds. Reliance is high.';}
+    else{co.className='callout bad';
+      co.innerHTML='<b>Unfaithful.</b> A hidden image signal drives the call, so flipping concepts barely moves it — yet it still displays concept “explanations.” Reliance ≈ 0.';}
+  }
+
+  function loadCase(idx){state.caseIdx=idx; state.c=CASES[idx].slice(); state.decisive=-1; setE(); render();}
+
+  // events
+  document.getElementById('cases').addEventListener('click',e=>{
+    const b=e.target.closest('.chip'); if(!b)return;
+    document.querySelectorAll('#cases .chip').forEach(x=>x.setAttribute('aria-pressed','false'));
+    b.setAttribute('aria-pressed','true'); loadCase(+b.dataset.case);
+  });
+  document.getElementById('model').addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b)return;
+    document.querySelectorAll('#model button').forEach(x=>x.setAttribute('aria-pressed','false'));
+    b.setAttribute('aria-pressed','true'); state.model=b.dataset.m; state.decisive=-1; render();
+  });
+  cbox.addEventListener('input',e=>{
+    if(e.target.type!=='range')return; const i=+e.target.id.slice(1);
+    state.c[i]=e.target.value/100; state.decisive=-1; render();
+  });
+  cbox.addEventListener('click',e=>{
+    const b=e.target.closest('.flip'); if(!b)return; const i=+b.dataset.i;
+    const before=prob(state.c);
+    state.c[i]=1-state.c[i];              // flip present<->absent
+    const after=prob(state.c);
+    state.decisive=i;                      // mark the flipped concept
+    render();
+  });
+  document.getElementById('reset').addEventListener('click',()=>loadCase(state.caseIdx));
+  document.getElementById('neutral').addEventListener('click',()=>{
+    state.c=[.5,.5,.5,.5,.5,.5,.5]; state.decisive=-1; render();
+  });
+
+  // theme toggle (works locally; artifact host also stamps data-theme)
+  document.getElementById('theme').addEventListener('click',()=>{
+    const cur=document.documentElement.getAttribute('data-theme');
+    const mql=window.matchMedia('(prefers-color-scheme:dark)').matches;
+    const next=(cur? cur==='dark':mql)?'light':'dark';
+    document.documentElement.setAttribute('data-theme',next);
+  });
+
+  loadCase(0);
+})();
+</script>
