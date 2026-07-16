@@ -1,44 +1,72 @@
 # Faithful-by-Concept
 
-Verifiable & equitable concept reasoning for skin-lesion diagnosis. Target venue: **MICAD 2026**.
+**Verifiable & equitable concept reasoning for skin-lesion diagnosis.** Target venue: **MICAD 2026**.
 
-> A concept-bottleneck dermatology diagnostic that (1) diagnoses through true dermatologist
-> concepts, (2) *measures* whether those concepts causally drive the decision
-> (concept-counterfactual faithfulness), and (3) audits + mitigates whether that faithfulness
-> holds equally across skin tones.
+> An AI that diagnoses skin lesions (e.g. melanoma) **and explains itself with the clues a
+> dermatologist uses** (pigment network, blue-whitish veil, asymmetry, …) — then goes further:
+> it **proves** those clues actually drive the decision, and **checks the reasoning is fair
+> across skin tones**. Frozen foundation encoder + tiny trained heads → runs on one Kaggle GPU.
 
-See **[PROPOSAL.md](PROPOSAL.md)** for the research idea and **[PLAN.md](PLAN.md)** for the
-implementation plan.
+New here? Read **[PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)** — a plain-English overview for beginners.
 
----
+## What it does (3 contributions)
+1. **Concept-counterfactual faithfulness** — flips a concept in concept space (no image
+   generator) and measures whether the diagnosis changes as the explanation implies.
+2. **Faithful-by-Concept model** — a concept bottleneck whose diagnosis head sees *only*
+   concepts, with concept supervision bootstrapped from a dermatology foundation model.
+3. **Fairness-of-reasoning audit** — the first test of whether concept faithfulness holds
+   equally across Fitzpatrick skin tones.
+
+## Headline results (honest)
+- **Diagnosis:** the interpretable bottleneck **matches/beats** a black-box image model on
+  melanoma detection (AUROC **0.85** vs 0.83) — interpretability at no accuracy cost.
+- **Faithfulness:** our model genuinely relies on its concepts (**reliance 0.22**) while a
+  "fake-interpretable" leaky model relies on them **≈ 0** — a statistically significant gap.
+- **Fairness:** reasoning is **statistically equitable** across skin tones; **diverse training**
+  (not post-hoc calibration) is the effective lever for dark-skin faithfulness.
+- **Encoder:** a derm foundation encoder yields more faithful concepts than a general one.
+
+## Documentation
+| File | What |
+|---|---|
+| [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md) | Beginner-friendly 7-part overview |
+| [PROPOSAL.md](PROPOSAL.md) | Original research idea |
+| [PLAN.md](PLAN.md) | Implementation plan / milestones |
+| [RUNBOOK.md](RUNBOOK.md) | **Exact ordered cells to run on Kaggle** |
+| [paper/main.tex](paper/main.tex) | Draft MICAD manuscript |
 
 ## Layout
 ```
-src/fbc/        reusable package (data, encoders, models, faithfulness, fairness, eval)
-notebooks/      thin Kaggle drivers 01..06, each produces one artifact
+src/fbc/        reusable package: data, encoders, models, faithfulness, fairness, eval
+scripts/        pipeline drivers (verify_data, extract_embeddings, make_splits,
+                pseudolabel, train, faithfulness, fairness, ablation_encoder, make_report)
 experiments/    per-run YAML configs
-artifacts/      embeddings cache, checkpoints, results (gitignored)
+paper/          LaTeX manuscript draft
+artifacts/      embeddings cache, checkpoints, results, figures (gitignored)
 ```
 
-## Running on Kaggle (internet ON)
-1. Attach the 4 datasets to the notebook (see slugs below). They mount under `/kaggle/input/`.
-2. Attach this repo (as a utility dataset) **or** `!pip install -e /kaggle/working/micad`.
-3. Run notebooks in order: `01_extract_embeddings → 02_pseudolabels → 03_train_cbm →
-   04_faithfulness → 05_fairness → 06_tables_figures`. Chain them via
-   "Add data → Notebook output" so cached embeddings/checkpoints flow forward.
+## Running it
+Everything runs in one Kaggle notebook (GPU + Internet ON). Follow **[RUNBOOK.md](RUNBOOK.md)**;
+the short version:
+```python
+!git clone -q https://github.com/Vidhyan11/micad.git /kaggle/working/micad
+import sys; sys.path.insert(0, "/kaggle/working/micad/src")
+# then: verify_data → extract_embeddings → make_splits → pseudolabel →
+#       train → faithfulness → fairness → ablation_encoder → make_report
+```
 
-### Datasets (Kaggle slugs → mount path)
-| Dataset | Slug | Mounts at |
-|---|---|---|
-| derm7pt | `menakamohanakumar/derm7pt` | `/kaggle/input/derm7pt` |
-| PH2 | `jamesgoydos/melanoma-skin-lesion-id-ph2-data` | `/kaggle/input/melanoma-skin-lesion-id-ph2-data` |
-| Fitzpatrick17k | `mobaswiralfarabi/fitzpatrick17k` | `/kaggle/input/fitzpatrick17k` |
-| PAD-UFES-20 | `orvile/pad-ufes-20` | `/kaggle/input/pad-ufes-20` |
+### Datasets (Kaggle)
+| Dataset | Role |
+|---|---|
+| `menakamohanakumar/derm7pt` | primary — real 7-point concept ground truth (Model A) |
+| `nazmusresan/fitzpatrick17k` | fairness backbone — Fitzpatrick I–VI (Model B) |
+| `orvile/pad-ufes-20` | clinical fairness check + partial concept GT |
+
+*(PH2 was dropped — no mirror ships images and concept labels together.)*
 
 ## Local dev
 ```bash
 pip install -e .
 python -c "import fbc; print(fbc.__version__)"
 ```
-
-Config auto-detects Kaggle vs local (see `src/fbc/config.py`).
+Config auto-detects Kaggle vs local (`src/fbc/config.py`).
