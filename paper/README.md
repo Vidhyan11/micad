@@ -10,12 +10,16 @@
   — generate it with `scripts/make_report.py` and copy it next to `main.tex` (or fix
   the path) before compiling.
 
-## Remaining `\todo`s (fill from Kaggle runs)
-- Table 2: 95% CIs from `faithfulness.py`.
-- Table 3: V–VI vs I–II bootstrap difference CIs from `fairness.py`.
-- E4a: encoder-ablation table from `ablation_encoder.py`.
+## Status: all `\todo`s filled (final numbers with 95% CIs are in the draft).
 
-## Numbers currently in the draft (observed)
+## Key numbers in the draft (observed, with 95% CI)
 - E1 (melanoma detection): image-only AUROC 0.830; CBM 0.852; oracle 0.914; concept AUROC 0.827 (vs 0.644 zero-shot).
-- E2: pure reliance 0.223 vs leaky ~0; ccf_corr magnitude-blindness noted.
-- E3: biased V–VI bal-acc 0.682/reliance 0.178 → diverse 0.725/0.217.
+- E2: pure reliance 0.223 [0.212,0.236] vs leaky 0.000; Δ significant. ccf_corr magnitude-blindness noted.
+- E3 (honest): NO significant within-regime dark-vs-light faithfulness gap (equitable). Diverse
+  training significantly improves V–VI faithfulness vs biased (0.178→0.217, non-overlapping CIs).
+  Group-conditional calibration was NOT effective (reported as a negative result).
+- E4a: DermLIP > DINOv2 on concepts (0.827 vs 0.782) and faithfulness (0.223 vs 0.155) at equal dx AUROC.
+
+## Honesty note
+The fairness story is "reasoning is equitable; data diversity — not calibration — is the lever."
+Do NOT reintroduce any claim that the calibration mitigation shrinks the gap; it does not.

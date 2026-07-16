@@ -30,10 +30,13 @@ faithfulness degrades on darker (Fitzpatrick V--VI) skin, with a lightweight
 group-conditional calibration mitigation. On derm7pt, our bottleneck matches or
 exceeds an image-only baseline for melanoma detection (AUROC $0.852$ vs $0.830$)
 while remaining fully interpretable, and we show that a common "leaky" concept model
-appears interpretable yet is causally unfaithful (concept reliance $\approx 0$).
-Under light-skin-dominant training, both accuracy and reasoning faithfulness degrade
-on dark skin; skin-tone-diverse training restores both. All experiments run on a
-single GPU with frozen encoders.
+appears interpretable yet is causally unfaithful (concept reliance $\approx 0$; gap significant at 95\% CI).
+Auditing across Fitzpatrick skin tones, we find reasoning faithfulness is
+statistically \emph{equitable} within a training regime (no significant dark-skin
+deficit), and that skin-tone-diverse training \emph{significantly} improves dark-skin
+faithfulness over light-dominant training --- identifying data diversity, rather than
+post-hoc calibration, as the effective lever. All experiments run on a single GPU
+with frozen encoders.
 \keywords{Concept bottleneck \and Faithfulness \and Fairness \and Dermoscopy \and Explainable AI}
 \end{abstract}
 
@@ -131,52 +134,79 @@ B & CBM (ours)       & 0.720 & 0.792 & (pseudo) \\
 \end{table}
 
 \subsection{Faithfulness (E2)}
-Table~\ref{tab:exp2}. The pure bottleneck relies on its concepts (reliance $0.22$)
-while the leaky model --- which also displays concepts --- is causally inert
-(reliance $\approx 0$). Notably the leaky model scores \emph{higher} rank-agreement
-($\mathrm{ccf\_corr}$), demonstrating that magnitude-aware faithfulness is essential.
-\todo{insert 95\% CIs from faithfulness.py output}
+Table~\ref{tab:exp2} (95\% bootstrap CIs). The pure bottleneck relies on its concepts
+(reliance $0.223$ [$0.212,0.236$]) while the leaky model --- which also displays
+concepts --- is causally inert (reliance $0.000$ [$0.000,0.000$]); the pure$-$leaky
+gap is significant (Model A $\Delta=0.223$ [$0.211,0.236$]; Model B $\Delta=0.100$
+[$0.094,0.106$]). Notably the leaky model scores \emph{higher} rank-agreement
+($\mathrm{ccf\_corr}$ $0.819$ vs $0.605$), demonstrating that rank-only faithfulness
+is magnitude-blind and that magnitude-aware measures (reliance, comprehensiveness)
+are essential.
 
 \begin{table}[t]\centering
-\caption{Concept-counterfactual faithfulness. Higher reliance/comprehensiveness =
-more faithful; ccf\_corr (rank-only) is magnitude-blind.}
+\caption{Concept-counterfactual faithfulness (95\% CI). Higher reliance/
+comprehensiveness = more faithful; ccf\_corr (rank-only) is magnitude-blind.}
 \label{tab:exp2}
 \begin{tabular}{llcccc}
 \toprule
 Model & Variant & reliance & compreh. & suffic. & ccf\_corr \\
 \midrule
-A & pure bottleneck & 0.223 & 0.129 & 0.073 & 0.605 \\
+A & pure bottleneck & \textbf{0.223} & \textbf{0.129} & 0.073 & 0.605 \\
 A & leaky           & 0.000 & 0.000 & 0.000 & 0.819 \\
-B & pure bottleneck & 0.208 & 0.172 & 0.074 & 0.553 \\
+B & pure bottleneck & \textbf{0.208} & \textbf{0.172} & 0.074 & 0.553 \\
 B & leaky           & 0.108 & 0.103 & 0.020 & 0.780 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection{Fairness of reasoning (E3)}
-Table~\ref{tab:exp3}. Under light-skin-only training, V--VI is the worst group on
-both diagnosis (bal-acc $0.682$) and reasoning faithfulness (reliance $0.178$);
-skin-tone-diverse training restores both (V--VI bal-acc $0.725$, reliance $0.217$).
-Group-conditional calibration provides partial retraining-free mitigation.
-\todo{insert V-VI vs I-II bootstrap difference CIs}
+Table~\ref{tab:exp3} (95\% CIs; Fitzpatrick17k / Model B). Two findings. \textbf{(i)
+Reasoning is equitable within a regime}: the dark-vs-light faithfulness difference is
+not significant (biased training, $\Delta$reliance$(\text{V--VI}-\text{I--II})=-0.003$
+[$-0.016,0.009$], n.s.). \textbf{(ii) Data diversity is the effective lever}:
+skin-tone-diverse training significantly improves dark-skin (V--VI) faithfulness over
+light-dominant training --- reliance $0.178$ [$0.167,0.189$] $\rightarrow$ $0.217$
+[$0.205,0.230$] and comprehensiveness $0.139$ [$0.132,0.146$] $\rightarrow$ $0.175$
+[$0.167,0.183$], both with non-overlapping CIs. In contrast, group-conditional
+concept calibration did \emph{not} significantly change the gaps (reliance gap
+$0.019\!\rightarrow\!0.019$), indicating post-hoc calibration is not a sufficient
+mitigation. To our knowledge this is the first audit of reasoning faithfulness across
+skin tones in dermatology AI.
 
 \begin{table}[t]\centering
-\caption{Reasoning fairness on Fitzpatrick17k V--VI (dark skin), by training regime.}
+\caption{Dark-skin (V--VI) diagnosis and reasoning faithfulness by training regime
+(95\% CI). Diverse training significantly improves faithfulness (non-overlapping CIs).}
 \label{tab:exp3}
 \begin{tabular}{lccc}
 \toprule
 Training regime & dx bal-acc & reliance & comprehensiveness \\
 \midrule
-Biased (light I--II only) & 0.682 & 0.178 & 0.139 \\
-Diverse (all tones)       & 0.725 & 0.217 & 0.175 \\
+Biased (light I--II only) & 0.682 [0.60,0.76] & 0.178 [0.167,0.189] & 0.139 [0.132,0.146] \\
+Diverse (all tones)       & 0.725 [0.65,0.80] & \textbf{0.217} [0.205,0.230] & \textbf{0.175} [0.167,0.183] \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection{Ablations and qualitative (E4--E5)}
-Encoder ablation (DermLIP vs DINOv2): \todo{insert exp4a table}. Figure~\ref{fig:qual}
-shows a melanoma case with predicted concepts and the counterfactual concept whose
-flip most changes the decision.
+\textbf{Encoder ablation} (Table~\ref{tab:exp4a}): at near-identical diagnosis AUROC,
+the derm foundation encoder (DermLIP) yields substantially better concept prediction
+(0.827 vs 0.782) and more faithful reasoning (reliance 0.223 vs 0.155) than a general
+encoder (DINOv2) --- domain pretraining buys \emph{faithful concepts}, not just
+accuracy. Figure~\ref{fig:qual} shows a melanoma case with predicted concepts and the
+counterfactual concept whose flip most changes the decision.
+
+\begin{table}[t]\centering
+\caption{Encoder ablation (Model A, melanoma detection).}
+\label{tab:exp4a}
+\begin{tabular}{lcccc}
+\toprule
+Encoder & dx bal-acc & dx AUROC & concept AUROC & reliance \\
+\midrule
+DINOv2 (general) & 0.759 & 0.849 & 0.782 & 0.155 \\
+DermLIP (derm)   & 0.777 & 0.852 & \textbf{0.827} & \textbf{0.223} \\
+\bottomrule
+\end{tabular}
+\end{table}
 \begin{figure}[t]\centering
 \includegraphics[width=\textwidth]{../artifacts/figures/qualitative_melanoma.png}
 \caption{Concept-counterfactual explanation for a melanoma case.}
@@ -184,11 +214,16 @@ flip most changes the decision.
 \end{figure}
 
 \section{Discussion and Limitations}
-Foundation embeddings appear partially skin-tone-robust, so residual fairness gaps are
-modest but consistently concentrate on dark skin under biased training. Clinical
-concept pseudo-labels are noisy (validated where GT exists: PAD-UFES elevation AUROC
-$0.63$); we treat pseudo-label quality as a studied variable. Absolute lesion size is
-not visually recoverable from crops and was excluded.
+Reasoning faithfulness was statistically equitable across skin tones in every regime
+we tested; the actionable lever for improving dark-skin faithfulness was training-data
+diversity, not post-hoc calibration (which was ineffective). This is a reassuring but
+important first result, and its effect sizes are modest --- partly because the derm
+foundation encoder is already fairly skin-tone-robust. Clinical concept pseudo-labels
+are noisy (validated where GT exists: PAD-UFES elevation AUROC $0.63$); we treat
+pseudo-label quality as a studied variable rather than ground truth. Absolute lesion
+size is not visually recoverable from crops and was excluded. Our faithfulness metric
+is defined within the concept bottleneck; extending it to end-to-end models is future
+work.
 
 \section{Conclusion}
 Faithful-by-Concept makes concept explanations \emph{verifiable} and \emph{equitable}:
