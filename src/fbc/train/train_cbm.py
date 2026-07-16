@@ -12,7 +12,7 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from ..models import CBM, ImageOnly
+from ..models import CBM, ImageOnly, LeakyCBM
 from ..utils.seed import seed_everything
 from . import losses
 from .data import Assembled
@@ -124,6 +124,35 @@ def train_dx_from_concepts(data: Assembled, cfg, device="cuda", use_gt=True):
 def _new_cbm(data, cfg, emb_dim, device):
     return CBM(emb_dim, len(data.keys), data.n_classes,
               cfg.concept_hidden, cfg.diagnosis_hidden, cfg.dropout).to(device)
+
+
+def train_leaky_cbm(data: Assembled, cfg, device="cuda") -> LeakyCBM:
+    """Leaky baseline: diagnosis head sees concepts + embedding, trained jointly."""
+    seed_everything(cfg.seed)
+    Xtr, Ctr, Mtr, ytr = data.subset("train")
+    Xva, Cva, Mva, yva = data.subset("val")
+    Xtr, Ctr, Mtr, ytr = _to(device, Xtr, Ctr, Mtr, ytr)
+    Xva, Cva, Mva, yva = _to(device, Xva, Cva, Mva, yva)
+    model = LeakyCBM(Xtr.shape[1], len(data.keys), data.n_classes,
+                     cfg.concept_hidden, cfg.diagnosis_hidden, cfg.dropout).to(device)
+    cw = _class_weights(ytr, data.n_classes)
+    g = torch.Generator().manual_seed(cfg.seed)
+
+    def step(opt):
+        for idx in _iterate(len(Xtr), cfg.batch_size, g):
+            opt.zero_grad()
+            clogits, _, dxlogits = model(Xtr[idx])
+            loss = (cfg.concept_loss_weight * losses.masked_bce(clogits, Ctr[idx], Mtr[idx])
+                    + losses.diagnosis_ce(dxlogits, ytr[idx], weight=cw))
+            loss.backward(); opt.step()
+
+    def val():
+        _, _, dxlogits = model(Xva)
+        return _balanced_acc(dxlogits.argmax(1), yva, data.n_classes)
+
+    _fit(model, model.parameters(), step, val,
+         max(cfg.epochs_concept, cfg.epochs_diagnosis), cfg.lr, cfg.weight_decay)
+    return model
 
 
 def train_cbm(data: Assembled, cfg, device="cuda", mode="sequential") -> CBM:

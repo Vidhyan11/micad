@@ -144,9 +144,25 @@ closely. Paste this output.
 
 ---
 
+## 9. Concept-counterfactual faithfulness — Experiment 2 (MF1)
+
+```python
+!cd /kaggle/working/micad && git pull -q
+!python /kaggle/working/micad/scripts/faithfulness.py --encoder dermlip
+```
+Flags: `--importance {gradient,loo}`, `--cf_mode {flip,ablate}`.
+
+✅ Expect an **Experiment 2 table** comparing the PURE bottleneck vs a LEAKY CBM on:
+`ccf_corr` (stated↔causal agreement), `decisive_hit`, `comprehensiveness`,
+`sufficiency` (lower better), `reliance` (how much the decision depends on
+concepts). The pure bottleneck should show **much higher reliance /
+comprehensiveness** — its decisions are genuinely concept-driven; the leaky model's
+are not. Paste this output.
+
+---
+
 ## Steps coming next (not yet runnable — I'll add cells here)
 
-- **MF1** — concept-counterfactual faithfulness (Experiment 2).
 - **MF3** — fairness-of-reasoning audit + mitigation (Experiment 3).
 - **MR** — tables + figures.
 

@@ -41,6 +41,35 @@ class CBM(nn.Module):
         return self.diagnosis_head(concept_probs)
 
 
+class LeakyCBM(nn.Module):
+    """Baseline for the faithfulness contrast: the diagnosis head sees BOTH the
+    concept probabilities AND the embedding. The embedding path lets the decision
+    bypass the concepts, so flipping a concept moves the decision less than an
+    attribution claims -> lower faithfulness than the pure bottleneck.
+    """
+
+    def __init__(self, emb_dim: int, n_concepts: int, n_classes: int,
+                 concept_hidden: int = 256, dx_hidden: int = 128, dropout: float = 0.1):
+        super().__init__()
+        self.emb_dim = emb_dim
+        self.n_concepts = n_concepts
+        self.n_classes = n_classes
+        self.concept_head = MLP(emb_dim, concept_hidden, n_concepts, dropout)
+        self.diagnosis_head = MLP(n_concepts + emb_dim, dx_hidden, n_classes, dropout)
+
+    def forward(self, emb):
+        concept_logits = self.concept_head(emb)
+        concept_probs = torch.sigmoid(concept_logits)
+        dx_logits = self.diagnosis_head(torch.cat([concept_probs, emb], dim=1))
+        return concept_logits, concept_probs, dx_logits
+
+    def predict_concepts(self, emb):
+        return torch.sigmoid(self.concept_head(emb))
+
+    def diagnose_from_concepts(self, concept_probs, emb):
+        return self.diagnosis_head(torch.cat([concept_probs, emb], dim=1))
+
+
 class ImageOnly(nn.Module):
     """Baseline: emb -> dx directly (no concepts). Accuracy ceiling, no bottleneck."""
 
