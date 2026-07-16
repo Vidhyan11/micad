@@ -24,10 +24,14 @@ class Assembled:
     split: np.ndarray          # (N,) "train"/"val"/"test"/""
     keys: list                 # concept keys (domain order)
     n_classes: int
+    fst_group: np.ndarray = None  # (N,) "I-II"/"III-IV"/"V-VI"/"" — for fairness
 
     def subset(self, split_name: str):
         m = self.split == split_name
         return (self.emb[m], self.concept_targets[m], self.concept_mask[m], self.y[m])
+
+    def split_mask(self, split_name: str) -> np.ndarray:
+        return self.split == split_name
 
 
 def assemble(ds: str, encoder: str, use_pseudo: bool,
@@ -62,6 +66,8 @@ def assemble(ds: str, encoder: str, use_pseudo: bool,
     if "emb_valid" in df.columns:
         keep &= df["emb_valid"].to_numpy(bool)
 
+    fst = (df["fst_group"].to_numpy().astype(str)[keep]
+           if "fst_group" in df.columns else None)
     return Assembled(
         emb=emb[keep].astype(np.float32),
         concept_targets=targets[keep],
@@ -70,4 +76,5 @@ def assemble(ds: str, encoder: str, use_pseudo: bool,
         split=df["split"].to_numpy().astype(str)[keep],
         keys=list(keys),
         n_classes=n_classes,
+        fst_group=fst,
     )

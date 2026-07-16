@@ -161,10 +161,24 @@ are not. Paste this output.
 
 ---
 
+## 10. Fairness-of-reasoning audit + mitigation — Experiment 3 (MF3)
+
+```python
+!cd /kaggle/working/micad && git pull -q
+!python /kaggle/working/micad/scripts/fairness.py --encoder dermlip
+```
+
+✅ Expect a per-Fitzpatrick-group table (I-II / III-IV / V-VI) of diagnosis
+accuracy AND reasoning faithfulness (reliance, comprehensiveness), BEFORE and AFTER
+group-conditional concept calibration, with the worst-vs-best GAP for each. The
+question: does faithfulness degrade on darker skin, and does calibration shrink the
+gap? Paste this output.
+
+---
+
 ## Steps coming next (not yet runnable — I'll add cells here)
 
-- **MF3** — fairness-of-reasoning audit + mitigation (Experiment 3).
-- **MR** — tables + figures.
+- **MR** — tables + figures (regenerate all experiment tables + qualitative panels).
 
 This RUNBOOK is updated as each step lands — `git pull` and re-read the bottom.
 
