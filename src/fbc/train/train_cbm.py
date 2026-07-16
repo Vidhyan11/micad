@@ -22,6 +22,23 @@ def _to(device, *arrs):
     return [torch.as_tensor(a).to(device) for a in arrs]
 
 
+def _balanced_acc(pred: torch.Tensor, y: torch.Tensor, n_classes: int) -> float:
+    """Mean per-class recall — robust model-selection metric under imbalance."""
+    accs = []
+    for c in range(n_classes):
+        m = y == c
+        if m.any():
+            accs.append((pred[m] == c).float().mean())
+    return torch.stack(accs).mean().item() if accs else 0.0
+
+
+def _class_weights(y: torch.Tensor, n_classes: int) -> torch.Tensor:
+    """Inverse-frequency class weights (normalized) for CE under imbalance."""
+    counts = torch.bincount(y, minlength=n_classes).float()
+    w = counts.sum() / (counts.clamp_min(1.0) * n_classes)
+    return w
+
+
 def _iterate(n, batch_size, generator):
     perm = torch.randperm(n, generator=generator)
     for i in range(0, n, batch_size):
@@ -57,16 +74,17 @@ def train_image_only(data: Assembled, cfg, device="cuda") -> ImageOnly:
     Xva, yva = _to(device, Xva, yva)
     model = ImageOnly(Xtr.shape[1], data.n_classes, cfg.diagnosis_hidden, cfg.dropout).to(device)
     g = torch.Generator().manual_seed(cfg.seed)
+    cw = _class_weights(ytr, data.n_classes)
 
     def step(opt):
         for idx in _iterate(len(Xtr), cfg.batch_size, g):
             opt.zero_grad()
-            loss = losses.diagnosis_ce(model(Xtr[idx]), ytr[idx])
+            loss = losses.diagnosis_ce(model(Xtr[idx]), ytr[idx], weight=cw)
             loss.backward(); opt.step()
 
     def val():
         pred = model(Xva).argmax(1)
-        return (pred == yva).float().mean().item()
+        return _balanced_acc(pred, yva, data.n_classes)
 
     _fit(model, model.parameters(), step, val, cfg.epochs_diagnosis, cfg.lr, cfg.weight_decay)
     return model
@@ -85,6 +103,7 @@ def train_cbm(data: Assembled, cfg, device="cuda", mode="sequential") -> CBM:
     Xva, Cva, Mva, yva = _to(device, Xva, Cva, Mva, yva)
     model = _new_cbm(data, cfg, Xtr.shape[1], device)
     g = torch.Generator().manual_seed(cfg.seed)
+    cw = _class_weights(ytr, data.n_classes)
 
     if mode == "sequential":
         # (1) concept head
@@ -112,12 +131,12 @@ def train_cbm(data: Assembled, cfg, device="cuda", mode="sequential") -> CBM:
         def dstep(opt):
             for idx in _iterate(len(Ptr), cfg.batch_size, g):
                 opt.zero_grad()
-                loss = losses.diagnosis_ce(model.diagnosis_head(Ptr[idx]), ytr[idx])
+                loss = losses.diagnosis_ce(model.diagnosis_head(Ptr[idx]), ytr[idx], weight=cw)
                 loss.backward(); opt.step()
 
         def dval():
             pred = model.diagnosis_head(Pva).argmax(1)
-            return (pred == yva).float().mean().item()
+            return _balanced_acc(pred, yva, data.n_classes)
 
         _fit(model, model.diagnosis_head.parameters(), dstep, dval,
              cfg.epochs_diagnosis, cfg.lr, cfg.weight_decay)
@@ -128,12 +147,12 @@ def train_cbm(data: Assembled, cfg, device="cuda", mode="sequential") -> CBM:
                 opt.zero_grad()
                 clogits, cprobs, dxlogits = model(Xtr[idx])
                 loss = (cfg.concept_loss_weight * losses.masked_bce(clogits, Ctr[idx], Mtr[idx])
-                        + losses.diagnosis_ce(dxlogits, ytr[idx]))
+                        + losses.diagnosis_ce(dxlogits, ytr[idx], weight=cw))
                 loss.backward(); opt.step()
 
         def jval():
             _, _, dxlogits = model(Xva)
-            return (dxlogits.argmax(1) == yva).float().mean().item()
+            return _balanced_acc(dxlogits.argmax(1), yva, data.n_classes)
 
         _fit(model, model.parameters(), jstep, jval,
              max(cfg.epochs_concept, cfg.epochs_diagnosis), cfg.lr, cfg.weight_decay)
