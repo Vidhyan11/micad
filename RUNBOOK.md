@@ -194,9 +194,23 @@ from Kaggle: they're under `/kaggle/working/artifacts/` (Save Version to persist
 
 ---
 
+## 12. Encoder ablation — Experiment 4a
+
+Prereq: DINOv2 embeddings + splits already done (§3–4); DermLIP done (§6);
+pseudo-labels done (§7). Then:
+```python
+!cd /kaggle/working/micad && git pull -q
+!python /kaggle/working/micad/scripts/ablation_encoder.py --encoders dinov2 dermlip
+```
+✅ Table of both models × both encoders — diagnosis, concept AUROC (Model A), and
+faithfulness (reliance/comprehensiveness). Shows whether the derm foundation
+encoder (DermLIP) beats the general one (DINOv2) on accuracy *and* faithful
+reasoning. Paste this output.
+
+---
+
 ## Steps coming next
 
-- **Exp 4a** — encoder ablation (DINOv2 vs DermLIP).
 - **Paper draft** — MICAD manuscript from the numbers above.
 
 This RUNBOOK is updated as each step lands — `git pull` and re-read the bottom.

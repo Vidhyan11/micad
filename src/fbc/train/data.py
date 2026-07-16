@@ -35,9 +35,15 @@ class Assembled:
 
 
 def assemble(ds: str, encoder: str, use_pseudo: bool,
-             binary_positive: str | None = None) -> Assembled:
+             binary_positive: str | None = None,
+             pseudo_encoder: str | None = None) -> Assembled:
     """Assemble tensors. If binary_positive is a dx_name (e.g. 'MEL', 'malignant'),
-    the task becomes binary detection (that class vs rest); else full multiclass."""
+    the task becomes binary detection (that class vs rest); else full multiclass.
+
+    pseudo_encoder decouples the pseudo-label source from the embedding source
+    (pseudo-labels need a CLIP text tower, so DINOv2 embeddings reuse DermLIP
+    pseudo-labels) — enabling the encoder ablation.
+    """
     df = pd.read_parquet(io.meta_path(ds))
     emb = np.load(io.emb_path(ds, encoder))
     assert len(df) == len(emb), f"{ds}: meta/emb length mismatch"
@@ -47,7 +53,7 @@ def assemble(ds: str, encoder: str, use_pseudo: bool,
     kidx = [CC.index_of(k) for k in keys]
 
     if use_pseudo:
-        pseudo = np.load(io.pseudo_path(ds, encoder))          # (N, 14)
+        pseudo = np.load(io.pseudo_path(ds, pseudo_encoder or encoder))   # (N, 14)
         targets = pseudo[:, kidx].astype(np.float32)
         mask = np.ones_like(targets, dtype=np.float32)
     else:
