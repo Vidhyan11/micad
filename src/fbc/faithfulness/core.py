@@ -82,28 +82,30 @@ def counterfactual_effect(concept_probs: torch.Tensor, predict_fn: PredictFn,
     return E.detach()
 
 
-def _aopc(concept_probs, predict_fn, yhat, order, reference, keep: bool):
-    """Average over k of prob-drop when ablating (keep=False) or keeping only
-    (keep=True) the top-k concepts given by `order` (N,K descending importance).
-    Vectorized over samples."""
+def _aopc_persample(concept_probs, predict_fn, yhat, order, reference, keep: bool):
+    """Per-sample average over k of prob-drop when ablating (keep=False) or keeping
+    only (keep=True) the top-k concepts given by `order`. Returns (N,)."""
     N, K = concept_probs.shape
     p0 = _pred_prob(predict_fn(concept_probs), yhat)
     ref_full = reference[None, :].expand(N, K)
-    drops = []
+    acc = torch.zeros(N, device=concept_probs.device)
     for k in range(1, K):
         topk = torch.zeros(N, K, dtype=torch.bool, device=concept_probs.device)
         topk.scatter_(1, order[:, :k], True)
-        # ablate: replace top-k with reference; keep: replace all-but-top-k
         c = torch.where(topk if not keep else ~topk, ref_full, concept_probs)
         pk = _pred_prob(predict_fn(c), yhat)
-        drops.append((p0 - pk).abs().mean().item())
-    return float(np.mean(drops))
+        acc += (p0 - pk).abs()
+    return acc / max(K - 1, 1)
 
 
 def faithfulness_scores(concept_probs: torch.Tensor, predict_fn: PredictFn,
                         reference: torch.Tensor, importance: str = "gradient",
-                        cf_mode: str = "flip") -> dict:
-    """Compute the full faithfulness metric bundle for one model on one split."""
+                        cf_mode: str = "flip", return_per_sample: bool = False) -> dict:
+    """Compute the full faithfulness metric bundle for one model on one split.
+
+    If return_per_sample=True, also returns '_per_sample' with (N,) numpy arrays for
+    each metric — enabling fast bootstrap CIs without recomputing interventions.
+    """
     with torch.no_grad():
         logits0 = predict_fn(concept_probs)
         yhat = logits0.argmax(1)
@@ -113,23 +115,25 @@ def faithfulness_scores(concept_probs: torch.Tensor, predict_fn: PredictFn,
     E = counterfactual_effect(concept_probs, predict_fn, yhat, mode=cf_mode,
                               reference=reference)
 
-    ccf = _rowwise_spearman(I, E)
-    ccf_mean = float(torch.nanmean(ccf).item())
-    decisive = float((I.argmax(1) == E.argmax(1)).float().mean().item())
-
+    ccf = _rowwise_spearman(I, E)                                   # (N,)
+    decisive = (I.argmax(1) == E.argmax(1)).float()                 # (N,)
     order = I.argsort(1, descending=True)
     with torch.no_grad():
-        comp = _aopc(concept_probs, predict_fn, yhat, order, reference, keep=False)
-        suff = _aopc(concept_probs, predict_fn, yhat, order, reference, keep=True)
+        comp = _aopc_persample(concept_probs, predict_fn, yhat, order, reference, keep=False)
+        suff = _aopc_persample(concept_probs, predict_fn, yhat, order, reference, keep=True)
         c_all = reference[None, :].expand_as(concept_probs).clone()
         p_all = _pred_prob(predict_fn(c_all), yhat)
-        reliance = float((p0 - p_all).abs().mean().item())
+        reliance = (p0 - p_all).abs()                               # (N,)
 
-    return {
-        "ccf_corr": ccf_mean,
-        "decisive_hit": decisive,
-        "comprehensiveness": comp,
-        "sufficiency": suff,
-        "reliance": reliance,
-        "n": int(concept_probs.shape[0]),
+    per = {
+        "ccf_corr": ccf.detach().cpu().numpy(),
+        "decisive_hit": decisive.detach().cpu().numpy(),
+        "comprehensiveness": comp.detach().cpu().numpy(),
+        "sufficiency": suff.detach().cpu().numpy(),
+        "reliance": reliance.detach().cpu().numpy(),
     }
+    out = {k: float(np.nanmean(v)) for k, v in per.items()}
+    out["n"] = int(concept_probs.shape[0])
+    if return_per_sample:
+        out["_per_sample"] = per
+    return out
