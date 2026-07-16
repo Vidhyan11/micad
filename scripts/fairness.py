@@ -71,14 +71,30 @@ def _print_audit(title, res):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--encoder", default="dermlip")
+    ap.add_argument("--train_groups", nargs="*", default=None,
+                    help="restrict TRAINING to these Fitzpatrick groups (e.g. I-II) "
+                         "to simulate biased/light-skin-dominant training; audit stays "
+                         "on all groups. Default: diverse training (all groups).")
     args = ap.parse_args()
     C.ensure_dirs()
     device = "cuda" if torch.cuda.is_available() else "cpu"
     cfg = replace(C.DEFAULT_TRAIN, encoder=args.encoder, device=device)
-    print(f"device={device} encoder={args.encoder}  (fairness on Fitzpatrick17k / Model B)")
+    regime = "diverse(all groups)" if not args.train_groups else f"biased({'+'.join(args.train_groups)})"
+    print(f"device={device} encoder={args.encoder} | training regime: {regime}")
 
     data = assemble("fitzpatrick17k", args.encoder, use_pseudo=True,
                     binary_positive="malignant")
+    # Optionally simulate biased training: exclude non-selected groups from TRAIN
+    # (val kept intact for early stopping + per-group calibration; test = all groups).
+    if args.train_groups:
+        tg = set(args.train_groups)
+        tr = data.split_mask("train")
+        excl = tr & ~np.isin(data.fst_group, list(tg))
+        data.split[excl] = ""
+        kept = data.split_mask("train")
+        from collections import Counter
+        print(f"  training composition (by FST): "
+              f"{dict(Counter(data.fst_group[kept]))}")
     model = T.train_cbm(data, cfg, device, mode="sequential")
     predict_fn = lambda c: model.diagnose_from_concepts(c)
 

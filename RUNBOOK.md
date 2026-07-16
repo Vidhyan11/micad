@@ -163,16 +163,21 @@ are not. Paste this output.
 
 ## 10. Fairness-of-reasoning audit + mitigation — Experiment 3 (MF3)
 
+Two arms (run both — they are the paper's fairness story):
+
 ```python
 !cd /kaggle/working/micad && git pull -q
+# Arm 1 — BIASED training (light skin only): the realistic deployment failure mode
+!python /kaggle/working/micad/scripts/fairness.py --encoder dermlip --train_groups I-II
+# Arm 2 — DIVERSE training (all skin tones): the fix
 !python /kaggle/working/micad/scripts/fairness.py --encoder dermlip
 ```
 
-✅ Expect a per-Fitzpatrick-group table (I-II / III-IV / V-VI) of diagnosis
+✅ Each prints a per-Fitzpatrick-group table (I-II / III-IV / V-VI) of diagnosis
 accuracy AND reasoning faithfulness (reliance, comprehensiveness), BEFORE and AFTER
-group-conditional concept calibration, with the worst-vs-best GAP for each. The
-question: does faithfulness degrade on darker skin, and does calibration shrink the
-gap? Paste this output.
+group-conditional concept calibration, with worst-vs-best GAPs. Story: Arm 1 should
+show a gap on unseen dark skin; Arm 2 (diverse training) closes it; calibration is
+the lightweight mitigation when retraining isn't possible. Paste both outputs.
 
 ---
 
