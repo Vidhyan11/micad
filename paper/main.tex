@@ -1,0 +1,198 @@
+% Faithful-by-Concept — MICAD 2026 submission draft
+% Springer LNEE. On Overleaf, use the Springer "llncs"/"lnee" class; article is a
+% compilable fallback. Swap \documentclass before submission.
+\documentclass[runningheads]{llncs}
+
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{xcolor}
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+
+\title{Faithful-by-Concept: Verifiable and Equitable Concept Reasoning for Skin-Lesion Diagnosis}
+\author{Anonymous}
+\institute{Anonymous}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Dermatology AI increasingly \emph{claims} to explain its decisions through clinical
+concepts (the 7-point checklist, ABCD), yet almost no work tests whether those
+concepts \emph{causally} drive the decision, and none asks whether such faithfulness
+holds equally across skin tones. We present \textbf{Faithful-by-Concept}, a
+concept-bottleneck framework that (i) diagnoses through dermatologist concepts with
+supervision bootstrapped from a frozen dermatology foundation model, (ii) introduces
+a \emph{concept-counterfactual faithfulness} test that flips a concept in concept
+space and measures whether the decision changes as the explanation implies, and
+(iii) performs the first \emph{fairness-of-reasoning} audit, testing whether concept
+faithfulness degrades on darker (Fitzpatrick V--VI) skin, with a lightweight
+group-conditional calibration mitigation. On derm7pt, our bottleneck matches or
+exceeds an image-only baseline for melanoma detection (AUROC $0.852$ vs $0.830$)
+while remaining fully interpretable, and we show that a common "leaky" concept model
+appears interpretable yet is causally unfaithful (concept reliance $\approx 0$).
+Under light-skin-dominant training, both accuracy and reasoning faithfulness degrade
+on dark skin; skin-tone-diverse training restores both. All experiments run on a
+single GPU with frozen encoders.
+\keywords{Concept bottleneck \and Faithfulness \and Fairness \and Dermoscopy \and Explainable AI}
+\end{abstract}
+
+\section{Introduction}
+Concept-based explanations are attractive for clinical AI because they speak the
+language of clinicians. But an explanation is only trustworthy if it is
+\emph{faithful} --- if the concepts it cites are the ones that actually determine the
+model's decision --- and only \emph{equitable} if that faithfulness holds across
+patient groups. Current dermatology concept models assert faithfulness by
+construction but never test it causally, and fairness work has measured accuracy gaps
+(e.g.\ across skin tone) but never gaps in \emph{reasoning}.
+
+We close both gaps. Our contributions are: (1) a \textbf{concept-counterfactual
+faithfulness} metric for dermatology that intervenes directly in concept space ---
+no image generator --- and measures whether the model's stated important concepts are
+the ones that causally move the decision; (2) \textbf{Faithful-by-Concept}, a
+frozen-encoder concept bottleneck whose diagnosis head sees \emph{only} concepts,
+with concept supervision bootstrapped from a dermatology foundation model where
+ground truth is unavailable; and (3) the first \textbf{fairness-of-reasoning audit}
+across Fitzpatrick skin tones, plus a group-conditional calibration mitigation. A
+leakage-clean protocol (lesion-level splits, embedding-based de-duplication)
+underpins all results.
+
+\section{Related Work}
+Concept-bottleneck and image--concept alignment models (e.g.\ MICA, Patr\'icio et
+al.) provide concept explanations but do not test causal faithfulness or fairness.
+Post-hoc concept methods (Post-hoc CBM) attribute concepts to a fixed classifier.
+Foundation concept annotators (MONET) score concepts but are not faithful diagnostic
+systems. Generative counterfactual audits (DeGrave et al.) operate at the pixel level
+and are expensive. Fairness studies (Daneshjou et al.; Lu et al.) address accuracy or
+coverage gaps, not reasoning. \textbf{No prior work measures whether skin-AI concept
+explanations are causally faithful, nor whether that faithfulness is fair across skin
+tones} --- our white space.
+
+\section{Method}
+\subsection{Two-model, shared-metric design}
+Dermoscopic 7-point concepts are not visible in clinical photographs, so we train two
+concept bottlenecks sharing one architecture and one faithfulness metric.
+\textbf{Model A} (dermoscopic) trains on derm7pt with real 7-point concept ground
+truth and validates the faithfulness metric against trustworthy concepts.
+\textbf{Model B} (clinical) trains on Fitzpatrick17k with foundation-bootstrapped
+clinical concepts (ABCD + morphology) and hosts the fairness audit.
+
+\subsection{Concept bottleneck}
+A frozen encoder $f$ (DermLIP; DINOv2 as ablation) maps an image to an embedding
+$z=f(x)$. A concept head $g$ predicts concept probabilities $\hat c=\sigma(g(z))\in
+[0,1]^K$; a diagnosis head $h$ predicts the label from \emph{concepts only},
+$\hat y=h(\hat c)$. Only $g,h$ (small MLPs) are trained. The pure bottleneck (h sees
+only $\hat c$) is what makes the counterfactual test meaningful.
+
+\subsection{Concept-counterfactual faithfulness}
+For a case with concepts $\hat c$ and predicted class $\hat y$, we compare the model's
+\emph{stated importance} $I_c$ (gradient of $P(\hat y)$ w.r.t.\ $\hat c_c$) with the
+\emph{causal effect} $E_c$ of intervening on concept $c$ (flipping $\hat c_c
+\rightarrow 1-\hat c_c$ and re-running $h$). We report: \emph{reliance} (decision-prob
+drop when all concepts are neutralised to a reference), \emph{comprehensiveness} /
+\emph{sufficiency} (ERASER-style, using $I$ to rank concepts), and a rank agreement
+$\mathrm{ccf\_corr}=\mathrm{Spearman}(I,E)$. We show that rank agreement alone is
+\emph{magnitude-blind} and must be paired with the magnitude-aware measures.
+
+\subsection{Fairness of reasoning}
+On Fitzpatrick17k we compute diagnosis accuracy \emph{and} faithfulness per skin-tone
+group (I--II / III--IV / V--VI) and report worst-vs-best gaps. As a retraining-free
+mitigation we fit a per-group temperature on concept logits (group-conditional
+calibration) on a held-out split.
+
+\section{Data and Protocol}
+derm7pt ($1011$ cases; official $413/203/395$ split; real 7-point concept GT),
+Fitzpatrick17k ($16{,}574$ images; Fitzpatrick I--VI; V--VI $=2168$), and PAD-UFES-20
+($2298$ lesions; provides partial clinical GT --- elevation --- for validation). We
+apply a leakage-clean protocol: group-aware stratified splits and embedding-based
+near-duplicate removal (e.g.\ $\sim\!600$ Fitzpatrick17k near-duplicates dropped).
+
+\section{Experiments}
+\subsection{Diagnosis and concept accuracy (E1)}
+Table~\ref{tab:exp1} (detection task). Model~A's bottleneck matches/exceeds
+image-only for melanoma detection while being fully interpretable; the oracle
+(GT concepts) upper bound is AUROC $0.914$. Supervised concept prediction reaches
+mean AUROC $0.827$ vs $0.644$ zero-shot --- the bootstrapping signal.
+
+\begin{table}[t]\centering
+\caption{Diagnosis / concept accuracy (detection). A: melanoma, B: malignant.}
+\label{tab:exp1}
+\begin{tabular}{llccc}
+\toprule
+Model & Variant & dx bal-acc & dx AUROC & concept AUROC \\
+\midrule
+A & image-only      & 0.763 & 0.830 & --- \\
+A & CBM (ours)       & 0.777 & 0.852 & 0.827 \\
+A & CBM-oracle (GT)  & 0.854 & 0.914 & --- \\
+B & image-only      & 0.788 & 0.886 & --- \\
+B & CBM (ours)       & 0.720 & 0.792 & (pseudo) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Faithfulness (E2)}
+Table~\ref{tab:exp2}. The pure bottleneck relies on its concepts (reliance $0.22$)
+while the leaky model --- which also displays concepts --- is causally inert
+(reliance $\approx 0$). Notably the leaky model scores \emph{higher} rank-agreement
+($\mathrm{ccf\_corr}$), demonstrating that magnitude-aware faithfulness is essential.
+\todo{insert 95\% CIs from faithfulness.py output}
+
+\begin{table}[t]\centering
+\caption{Concept-counterfactual faithfulness. Higher reliance/comprehensiveness =
+more faithful; ccf\_corr (rank-only) is magnitude-blind.}
+\label{tab:exp2}
+\begin{tabular}{llcccc}
+\toprule
+Model & Variant & reliance & compreh. & suffic. & ccf\_corr \\
+\midrule
+A & pure bottleneck & 0.223 & 0.129 & 0.073 & 0.605 \\
+A & leaky           & 0.000 & 0.000 & 0.000 & 0.819 \\
+B & pure bottleneck & 0.208 & 0.172 & 0.074 & 0.553 \\
+B & leaky           & 0.108 & 0.103 & 0.020 & 0.780 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Fairness of reasoning (E3)}
+Table~\ref{tab:exp3}. Under light-skin-only training, V--VI is the worst group on
+both diagnosis (bal-acc $0.682$) and reasoning faithfulness (reliance $0.178$);
+skin-tone-diverse training restores both (V--VI bal-acc $0.725$, reliance $0.217$).
+Group-conditional calibration provides partial retraining-free mitigation.
+\todo{insert V-VI vs I-II bootstrap difference CIs}
+
+\begin{table}[t]\centering
+\caption{Reasoning fairness on Fitzpatrick17k V--VI (dark skin), by training regime.}
+\label{tab:exp3}
+\begin{tabular}{lccc}
+\toprule
+Training regime & dx bal-acc & reliance & comprehensiveness \\
+\midrule
+Biased (light I--II only) & 0.682 & 0.178 & 0.139 \\
+Diverse (all tones)       & 0.725 & 0.217 & 0.175 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Ablations and qualitative (E4--E5)}
+Encoder ablation (DermLIP vs DINOv2): \todo{insert exp4a table}. Figure~\ref{fig:qual}
+shows a melanoma case with predicted concepts and the counterfactual concept whose
+flip most changes the decision.
+\begin{figure}[t]\centering
+\includegraphics[width=\textwidth]{../artifacts/figures/qualitative_melanoma.png}
+\caption{Concept-counterfactual explanation for a melanoma case.}
+\label{fig:qual}
+\end{figure}
+
+\section{Discussion and Limitations}
+Foundation embeddings appear partially skin-tone-robust, so residual fairness gaps are
+modest but consistently concentrate on dark skin under biased training. Clinical
+concept pseudo-labels are noisy (validated where GT exists: PAD-UFES elevation AUROC
+$0.63$); we treat pseudo-label quality as a studied variable. Absolute lesion size is
+not visually recoverable from crops and was excluded.
+
+\section{Conclusion}
+Faithful-by-Concept makes concept explanations \emph{verifiable} and \emph{equitable}:
+it tests, rather than assumes, that stated concepts causally drive diagnosis, and it
+is the first to audit whether that faithfulness is fair across skin tones.
+
+\end{document}
