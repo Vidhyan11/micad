@@ -79,8 +79,9 @@ CLINICAL_CONCEPTS: list[Concept] = [
             "an irregular ragged border", "a smooth well-defined border", "clinical"),
     Concept("color_variegation", "Color variegation",
             "several different colors", "one uniform color", "clinical"),
-    Concept("large_diameter", "Large diameter",
-            "a large wide lesion", "a small lesion", "clinical"),
+    # NOTE: 'large_diameter' was dropped — absolute size is not visually recoverable
+    # from a lesion crop (no scale reference); DermLIP zero-shot AUROC ~0.55 vs
+    # PAD-UFES diameter GT. Kept as a reported negative finding, not a bottleneck concept.
     Concept("elevation", "Elevation",
             "a raised bumpy surface", "a flat surface", "clinical"),
     Concept("ulceration", "Ulceration",
@@ -124,7 +125,7 @@ def mask_for(available_keys: list[str]) -> list[int]:
 DATASET_GT_CONCEPTS: dict[str, list[str]] = {
     "derm7pt": DERMOSCOPIC_KEYS,          # real 7-pt GT
     # PAD-UFES metadata gives partial clinical GT (used to VALIDATE pseudo-labels):
-    "pad_ufes_20": ["elevation", "large_diameter"],
+    "pad_ufes_20": ["elevation"],
     "fitzpatrick17k": [],                 # clinical concepts via pseudo-labels only
 }
 

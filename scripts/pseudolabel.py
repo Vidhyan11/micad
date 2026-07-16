@@ -31,7 +31,7 @@ from fbc.utils import io  # noqa: E402
 
 
 def pseudo_path(ds: str, enc: str) -> Path:
-    return C.EMB_DIR / f"pseudo_{ds}_{enc}.npy"
+    return io.pseudo_path(ds, enc)
 
 
 def validate_against_gt(df: pd.DataFrame, probs: np.ndarray) -> dict:

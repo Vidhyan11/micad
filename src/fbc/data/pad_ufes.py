@@ -37,17 +37,6 @@ def _as_bool01(v) -> float | None:
     return None
 
 
-def _large_diameter(d1, d2) -> float | None:
-    """ABCD 'D': lesion > 6 mm. Uses the larger of the two diameters."""
-    vals = [x for x in (d1, d2) if x is not None and not (isinstance(x, float) and np.isnan(x))]
-    if not vals:
-        return None
-    try:
-        return 1.0 if max(float(v) for v in vals) > 6.0 else 0.0
-    except (TypeError, ValueError):
-        return None
-
-
 def _build_image_index(images_root) -> dict[str, str]:
     """Map image filename -> absolute path (scan imgs_part_* once)."""
     idx: dict[str, str] = {}
@@ -106,10 +95,6 @@ def load(verbose: bool = True) -> pd.DataFrame:
         if elev is not None:
             rec[S.concept_col("elevation")] = elev
             rec[S.mask_col("elevation")] = 1
-        ld = _large_diameter(r.get("diameter_1"), r.get("diameter_2"))
-        if ld is not None:
-            rec[S.concept_col("large_diameter")] = ld
-            rec[S.mask_col("large_diameter")] = 1
         rows.append(rec)
 
     df = S.validate(pd.DataFrame(rows))

@@ -127,10 +127,24 @@ pseudo-concept positive-rates for Fitzpatrick/PAD. Paste this output.
 
 ---
 
+## 8. Train the two CBMs — Experiment 1 (MM)
+
+```python
+!cd /kaggle/working/micad && git pull -q
+!python /kaggle/working/micad/scripts/train.py --encoder dermlip
+```
+Add `--joint` to also train the joint-mode ablation.
+
+✅ Expect an **Experiment 1 table**: for Model A (derm7pt, real GT concepts) and
+Model B (Fitzpatrick17k, pseudo concepts) — diagnosis bal-acc/F1/AUROC for
+image-only vs CBM, plus concept mean AUROC. The CBM should stay competitive with
+image-only (the bottleneck's accuracy cost) while adding interpretable concepts.
+Paste this output.
+
+---
+
 ## Steps coming next (not yet runnable — I'll add cells here)
 
-- **MM** — train the two CBMs (concept head → diagnosis bottleneck) + baselines
-  (Experiment 1: diagnosis + concept accuracy).
 - **MF1** — concept-counterfactual faithfulness (Experiment 2).
 - **MF3** — fairness-of-reasoning audit + mitigation (Experiment 3).
 - **MR** — tables + figures.

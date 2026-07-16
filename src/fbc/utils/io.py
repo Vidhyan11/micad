@@ -16,6 +16,10 @@ def meta_path(dataset: str) -> Path:
     return config.EMB_DIR / f"meta_{dataset}.parquet"
 
 
+def pseudo_path(dataset: str, encoder: str) -> Path:
+    return config.EMB_DIR / f"pseudo_{dataset}_{encoder}.npy"
+
+
 def ckpt_path(name: str) -> Path:
     return config.CKPT_DIR / f"{name}.pt"
 
