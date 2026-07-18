@@ -224,8 +224,9 @@ B & CBM (ours) & 0.720 & 0.792 & (pseudo)\\[2pt]
 \end{center}
 \end{table}
 
-For melanoma detection the bottleneck matches and slightly exceeds image-only (AUROC
-0.852 vs.\ 0.830)---interpretability at no accuracy cost. The oracle (ground-truth
+As Table~\ref{tab:exp1} shows, for melanoma detection the bottleneck matches and
+slightly exceeds image-only (AUROC 0.852 vs.\ 0.830)---interpretability at no accuracy
+cost. The oracle (ground-truth
 concepts) reaches 0.914, so the concept set is highly diagnostic; concepts are
 predicted well (mean AUROC 0.827), far above zero-shot (0.644), quantifying the value
 of the foundation bootstrap. On the harder clinical task Model B trails image-only by
@@ -255,7 +256,8 @@ B & leaky & 0.108 & 0.103 & 0.020 & 0.780\\[2pt]
 \end{center}
 \end{table}
 
-The pure bottleneck's decisions genuinely depend on its concepts (reliance 0.223
+Table~\ref{tab:exp2} reports the results. The pure bottleneck's decisions genuinely
+depend on its concepts (reliance 0.223
 [0.212,0.236]) while the leaky model---displaying the same concepts---is causally inert
 (reliance 0.000): flipping or erasing its concepts does not move the decision
 (Fig.~\ref{fig:faith}). The pure$-$leaky gap is significant (Model A $\Delta=0.223$
@@ -292,6 +294,7 @@ Biased (I--II only) & V--VI & 0.682 & 0.178 & 0.139\\[2pt]
 \end{center}
 \end{table}
 
+Table~\ref{tab:exp3} reports the per-skin-tone audit.
 \emph{(i) Reasoning is equitable within a regime}: the dark-vs-light faithfulness
 difference is not significant (biased training, $\Delta_{\text{V--VI}-\text{I--II}}=
 -0.003$ [$-0.016,0.009$], n.s.)---the first evidence that concept reasoning need not be
@@ -319,8 +322,9 @@ DermLIP (derm) & 0.777 & 0.852 & \textbf{0.827} & \textbf{0.223}\\[2pt]
 \end{center}
 \end{table}
 
-At near-identical diagnosis AUROC, the dermatology encoder yields better concept
-prediction (0.827 vs.\ 0.782) and more faithful reasoning (reliance 0.223 vs.\ 0.155):
+As Table~\ref{tab:exp4a} shows, at near-identical diagnosis AUROC the dermatology
+encoder yields better concept prediction (0.827 vs.\ 0.782) and more faithful reasoning
+(reliance 0.223 vs.\ 0.155):
 domain pretraining buys faithful concepts, not merely accuracy. Fig.~\ref{fig:qual}
 shows a melanoma case with predicted concepts and the counterfactual concept whose flip
 most changes the decision.
