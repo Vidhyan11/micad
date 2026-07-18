@@ -10,6 +10,7 @@
 \def\UrlFont{\rmfamily}
 \usepackage{graphicx}
 \usepackage{amsmath}
+\usepackage{microtype} % improves justification / reduces overfull lines
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning}
 
@@ -27,13 +28,14 @@
 \tocauthor{B. Aswathi, Vidhyadharan B., R. Suganya}
 %
 \institute{Vellore Institute of Technology, Chennai, India\\
-\email{vidhyadharan.b2023@vitstudent.ac.in}}
+\email{aswathi.b2023@vitstudent.ac.in, vidhyadharan.b2023@vitstudent.ac.in,
+suganya.r@vit.ac.in}}
 
 \maketitle
 %
 \begin{abstract}
-Dermatology AI increasingly claims to explain decisions through clinical
-concepts---the 7-point checklist, ABCD---yet rarely tests whether those concepts
+Dermatology AI increasingly claims to explain decisions through clinical concepts
+such as the 7-point checklist and ABCD, yet rarely tests whether those concepts
 \emph{causally} drive the decision, and never whether such faithfulness is equitable
 across skin tones. We present Faithful-by-Concept, a concept-bottleneck framework
 that diagnoses through dermatologist concepts (bootstrapped from a frozen dermatology
@@ -191,8 +193,8 @@ skin-tone-diverse training regimes.
 \textbf{derm7pt}~\cite{kawahara2019}: 1{,}011 cases with expert 7-point concept
 annotations; official 413/203/395 split; concepts binarized to the score-positive
 variant. \textbf{Fitzpatrick17k}~\cite{groh2021}: 16{,}574 clinical images with
-Fitzpatrick I--VI (V--VI: 2{,}168) and coarse benign/malignant/non-neoplastic labels;
-no concept ground truth. \textbf{PAD-UFES-20}~\cite{pacheco2020}: 2{,}298 smartphone
+Fitzpatrick I--VI (V--VI: 2{,}168) and coarse three-way labels (benign, malignant, or
+non-neoplastic); no concept ground truth. \textbf{PAD-UFES-20}~\cite{pacheco2020}: 2{,}298 smartphone
 lesions; its \texttt{elevation} field gives partial clinical concept ground truth for
 validating the bootstrap. \textbf{Leakage-clean protocol}~\cite{cassidy2022}: near-duplicates removed by
 high-similarity clustering on frozen embeddings ($\approx$600 from Fitzpatrick17k) and
