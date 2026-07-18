@@ -4,8 +4,15 @@ Goal: get our `main.tex` (Springer `svproc` class) compiling on Overleaf into th
 
 ---
 
+## ⚠️ IMPORTANT: upload `svproc.cls`
+The common Springer Overleaf template is the **LNCS** one (main file `samplepaper.tex`,
+ships `llncs.cls`) — it does **NOT** contain `svproc.cls`, which our paper (and MICAD's
+LaTeX package) uses. If you see **`File 'svproc.cls' not found`**, upload these three
+files from your local **`latex template\styles\`** folder into the Overleaf project root:
+**`svproc.cls`**, **`aliascnt.sty`**, **`remreset.sty`**. Then Recompile.
+
 ## Option A — Use MICAD's Overleaf template (recommended)
-The template already contains `svproc.cls` and its style dependencies, so this is the least error-prone.
+The template may already contain `svproc.cls`; if not, upload it as noted above.
 
 ### 1. Account
 - Go to **overleaf.com** → **Register** (free) or **Log in**.
