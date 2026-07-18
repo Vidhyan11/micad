@@ -3,14 +3,14 @@
     !python /kaggle/working/micad/scripts/faithfulness.py --encoder dermlip
 
 Compares the PURE bottleneck CBM against a LEAKY CBM (diagnosis sees concepts +
-embedding). The pure bottleneck's decision depends only on concepts, so its stated
-concept importance should match the causal (counterfactual) effect and it should
-show high reliance/comprehensiveness; the leaky model should not.
+embedding). Runs over multiple seeds and reports mean+/-std, plus a paired Wilcoxon
+signed-rank test (pure vs leaky) on per-case reliance/comprehensiveness.
 """
 from __future__ import annotations
 
 import argparse
 import sys
+from collections import defaultdict
 from dataclasses import replace
 from pathlib import Path
 
@@ -20,13 +20,13 @@ import pandas as pd  # noqa: E402
 import torch  # noqa: E402
 
 import fbc.config as C  # noqa: E402
-from fbc.eval.bootstrap import bootstrap_ci, bootstrap_diff, fmt_ci  # noqa: E402
+from fbc.eval.bootstrap import fmt_ms, mean_std, wilcoxon_paired  # noqa: E402
 from fbc.faithfulness import faithfulness_scores  # noqa: E402
 from fbc.train import train_cbm as T  # noqa: E402
 from fbc.train.data import assemble  # noqa: E402
 from fbc.utils import io  # noqa: E402
 
-CI_METRICS = ["reliance", "comprehensiveness", "sufficiency", "ccf_corr", "decisive_hit"]
+METRICS = ["reliance", "comprehensiveness", "sufficiency", "ccf_corr", "decisive_hit"]
 
 SPECS = {
     "A": {"ds": "derm7pt", "use_pseudo": False, "binary_positive": "MEL",
@@ -42,78 +42,88 @@ def _test_tensors(data, device):
     return (torch.as_tensor(Xtr).to(device), torch.as_tensor(Xte).to(device))
 
 
+def run_seed(spec, args, cfg, device):
+    """Train pure + leaky at one seed; return their faithfulness score dicts."""
+    data = assemble(spec["ds"], args.encoder, use_pseudo=spec["use_pseudo"],
+                    binary_positive=spec["binary_positive"])
+    Xtr, Xte = _test_tensors(data, device)
+
+    pure = T.train_cbm(data, cfg, device, mode="sequential")
+    with torch.no_grad():
+        ref = pure.predict_concepts(Xtr).mean(0)
+        cp_te = pure.predict_concepts(Xte)
+    s_pure = faithfulness_scores(cp_te, lambda c: pure.diagnose_from_concepts(c),
+                                 ref, args.importance, args.cf_mode, return_per_sample=True)
+
+    leaky = T.train_leaky_cbm(data, cfg, device)
+    with torch.no_grad():
+        ref_l = leaky.predict_concepts(Xtr).mean(0)
+        lp_te = leaky.predict_concepts(Xte)
+    s_leaky = faithfulness_scores(lp_te, lambda c: leaky.diagnose_from_concepts(c, Xte),
+                                  ref_l, args.importance, args.cf_mode, return_per_sample=True)
+    return s_pure, s_leaky
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--encoder", default="dermlip")
     ap.add_argument("--models", nargs="*", default=["A", "B"])
+    ap.add_argument("--seeds", nargs="*", type=int, default=[0, 1, 2, 3, 4])
     ap.add_argument("--importance", default="gradient", choices=["gradient", "loo"])
     ap.add_argument("--cf_mode", default="flip", choices=["flip", "ablate"])
     args = ap.parse_args()
 
     C.ensure_dirs()
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    cfg = replace(C.DEFAULT_TRAIN, encoder=args.encoder, device=device)
-    print(f"device={device} encoder={args.encoder} importance={args.importance} cf={args.cf_mode}")
+    base = replace(C.DEFAULT_TRAIN, encoder=args.encoder, device=device)
+    print(f"device={device} encoder={args.encoder} seeds={args.seeds} "
+          f"importance={args.importance} cf={args.cf_mode}")
 
     rows = []
     for key in args.models:
         spec = SPECS[key]
-        ds = spec["ds"]
-        print(f"\n===== Model {key}: {spec['label']} ({ds}) =====")
-        data = assemble(ds, args.encoder, use_pseudo=spec["use_pseudo"],
-                        binary_positive=spec["binary_positive"])
-        Xtr, Xte = _test_tensors(data, device)
+        print(f"\n===== Model {key}: {spec['label']} ({spec['ds']}) =====")
+        per = {"pure-bottleneck": defaultdict(list), "leaky": defaultdict(list)}
+        first_ps = {}
+        for si, seed in enumerate(args.seeds):
+            s_pure, s_leaky = run_seed(spec, args, replace(base, seed=seed), device)
+            for variant, s in (("pure-bottleneck", s_pure), ("leaky", s_leaky)):
+                for m in METRICS:
+                    per[variant][m].append(s[m])
+            if si == 0:
+                first_ps = {"pure": s_pure["_per_sample"], "leaky": s_leaky["_per_sample"]}
+            print(f"  seed {seed}: pure reliance={s_pure['reliance']:.3f} "
+                  f"leaky reliance={s_leaky['reliance']:.3f}")
 
-        # --- pure bottleneck CBM ---
-        pure = T.train_cbm(data, cfg, device, mode="sequential")
-        with torch.no_grad():
-            cp_tr = pure.predict_concepts(Xtr)
-            cp_te = pure.predict_concepts(Xte)
-        ref = cp_tr.mean(0)                          # neutral reference (train mean)
-        pure_fn = lambda c: pure.diagnose_from_concepts(c)
-        s_pure = faithfulness_scores(cp_te, pure_fn, ref, args.importance, args.cf_mode,
-                                     return_per_sample=True)
-        _report(key, "pure-bottleneck", s_pure); rows.append(_row(key, "pure-bottleneck", ds, s_pure))
+        # paired significance (pure vs leaky), computed on seed-0 per-case arrays
+        sig = {}
+        for m in ("reliance", "comprehensiveness"):
+            sig[m] = wilcoxon_paired(first_ps["pure"][m], first_ps["leaky"][m])
 
-        # --- leaky CBM (concepts + embedding) ---
-        leaky = T.train_leaky_cbm(data, cfg, device)
-        with torch.no_grad():
-            lp_tr = leaky.predict_concepts(Xtr)
-            lp_te = leaky.predict_concepts(Xte)
-        ref_l = lp_tr.mean(0)
-        leaky_fn = lambda c: leaky.diagnose_from_concepts(c, Xte)
-        s_leaky = faithfulness_scores(lp_te, leaky_fn, ref_l, args.importance, args.cf_mode,
-                                      return_per_sample=True)
-        _report(key, "leaky", s_leaky); rows.append(_row(key, "leaky", ds, s_leaky))
-
-        # significance: does the pure bottleneck rely on concepts MORE than leaky?
-        for metric in ("reliance", "comprehensiveness"):
-            d = bootstrap_diff(s_pure["_per_sample"][metric], s_leaky["_per_sample"][metric])
-            sig = "significant" if (d["lo"] > 0 or d["hi"] < 0) else "n.s."
-            print(f"  Δ{metric}(pure−leaky) = {d['diff']:.3f} "
-                  f"[{d['lo']:.3f},{d['hi']:.3f}] ({sig})")
+        for variant in ("pure-bottleneck", "leaky"):
+            row = {"model": key, "variant": variant, "dataset": spec["ds"],
+                   "seeds": len(args.seeds)}
+            for m in METRICS:
+                mu, sd = mean_std(per[variant][m])
+                row[m] = mu; row[f"{m}_std"] = sd
+                row[f"{m}_lo"] = mu - sd; row[f"{m}_hi"] = mu + sd
+            if variant == "pure-bottleneck":
+                row["p_reliance"] = sig["reliance"]["p"]
+                row["p_comprehensiveness"] = sig["comprehensiveness"]["p"]
+            rows.append(row)
+            rel = per[variant]["reliance"]; com = per[variant]["comprehensiveness"]
+            print(f"  [{variant:16s}] reliance={fmt_ms(*mean_std(rel))} "
+                  f"comprehensiveness={fmt_ms(*mean_std(com))}")
+        print(f"  Wilcoxon pure>leaky:  reliance p={sig['reliance']['p']:.2e}  "
+              f"comprehensiveness p={sig['comprehensiveness']['p']:.2e}  "
+              f"(n={sig['reliance']['n']})")
 
     tbl = pd.DataFrame(rows)
     out = io.result_path("exp2_faithfulness")
     tbl.to_csv(out, index=False)
-    print(f"\n=== Experiment 2: faithfulness ===\n{tbl.to_string(index=False)}")
+    print(f"\n=== Experiment 2: faithfulness (mean+/-std over {len(args.seeds)} seeds) ===")
+    print(tbl.to_string(index=False))
     print(f"\nsaved -> {out}")
-
-
-def _row(key, variant, ds, s):
-    row = {"model": key, "variant": variant, "dataset": ds}
-    for m in CI_METRICS:
-        mean, lo, hi = bootstrap_ci(s["_per_sample"][m])
-        row[m] = mean; row[f"{m}_lo"] = lo; row[f"{m}_hi"] = hi
-    row["n"] = s["n"]
-    return row
-
-
-def _report(key, variant, s):
-    parts = []
-    for m in ("reliance", "comprehensiveness", "ccf_corr"):
-        parts.append(f"{m}={fmt_ci(*bootstrap_ci(s['_per_sample'][m]))}")
-    print(f"  [{variant:16s}] " + "  ".join(parts))
 
 
 if __name__ == "__main__":

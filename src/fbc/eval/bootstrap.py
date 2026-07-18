@@ -42,3 +42,36 @@ def bootstrap_diff(a: np.ndarray, b: np.ndarray, n_boot: int = 2000,
 
 def fmt_ci(mean: float, lo: float, hi: float) -> str:
     return f"{mean:.3f} [{lo:.3f},{hi:.3f}]"
+
+
+def wilcoxon_paired(a: np.ndarray, b: np.ndarray) -> dict:
+    """Paired Wilcoxon signed-rank test on matched per-sample values (same cases).
+    Returns {stat, p, n, median_diff}. Used for pure-vs-leaky (E2) and group
+    comparisons (E3) where the two arrays are aligned case-by-case."""
+    from scipy.stats import wilcoxon
+    a = np.asarray(a, np.float64); b = np.asarray(b, np.float64)
+    m = ~(np.isnan(a) | np.isnan(b))
+    a, b = a[m], b[m]
+    out = {"stat": float("nan"), "p": float("nan"), "n": int(len(a)),
+           "median_diff": float(np.median(a - b)) if len(a) else float("nan")}
+    if len(a) < 1 or np.allclose(a, b):
+        return out
+    try:
+        stat, p = wilcoxon(a, b)
+        out["stat"], out["p"] = float(stat), float(p)
+    except ValueError:
+        pass
+    return out
+
+
+def mean_std(values) -> tuple[float, float]:
+    """Mean and (population) std across seed runs."""
+    v = np.asarray(values, np.float64)
+    v = v[~np.isnan(v)]
+    if len(v) == 0:
+        return float("nan"), float("nan")
+    return float(v.mean()), float(v.std())
+
+
+def fmt_ms(mean: float, std: float) -> str:
+    return f"{mean:.3f}±{std:.3f}"
