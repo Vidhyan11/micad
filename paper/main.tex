@@ -10,6 +10,8 @@
 \def\UrlFont{\rmfamily}
 \usepackage{graphicx}
 \usepackage{amsmath}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
 
 \begin{document}
 \mainmatter
@@ -113,6 +115,38 @@ across skin tones.
 
 \section{Method}
 
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  node distance=5mm and 8mm,
+  box/.style={draw,rounded corners,align=center,minimum height=9mm,inner sep=4pt,font=\small},
+  frozen/.style={box,fill=black!6},
+  trained/.style={box,fill=blue!8,draw=blue!55},
+  lbl/.style={font=\footnotesize\itshape},
+  arr/.style={-{Latex[length=2mm]},thick}
+]
+\node (img) [box] {Lesion\\image $x$};
+\node (enc) [frozen, right=of img] {Frozen\\encoder $f$};
+\node (ch)  [trained, right=of enc] {Concept\\head $g$};
+\node (dh)  [trained, right=of ch] {Diagnosis\\head $h$};
+\node (y)   [box, right=of dh] {label\\$\hat y$};
+\draw[arr] (img) -- (enc);
+\draw[arr] (enc) -- node[above,lbl]{$z$} (ch);
+\draw[arr] (ch)  -- node[above,lbl]{$\hat c$} (dh);
+\draw[arr] (dh)  -- (y);
+\node (cf) [below=7mm of ch.south east, box, fill=red!6, draw=red!50, font=\footnotesize,
+            text width=52mm] {\textbf{Counterfactual test:} flip a concept $\hat c_c\!\to\!1-\hat c_c$, re-run $h$, measure $|\Delta P(\hat y)|$};
+\draw[arr,dashed,red!60] (cf.north) -- (dh.south);
+\node[lbl,below=1mm of enc] {frozen};
+\node[lbl,below=1mm of dh] {trained};
+\end{tikzpicture}
+\caption{Faithful-by-Concept. A frozen encoder produces an embedding $z$; a small
+concept head predicts dermatologist concepts $\hat c$; the diagnosis head sees
+\emph{only} $\hat c$. Because the decision passes through concepts alone, we can flip a
+concept in concept space and measure its causal effect on the diagnosis (dashed).}
+\label{fig:arch}
+\end{figure}
+
 \subsection{Two-model, shared-metric design}
 Dermoscopic 7-point concepts describe magnified sub-surface structure and are not
 present in ordinary clinical photographs, so a single concept model cannot honestly
@@ -124,7 +158,8 @@ clinical concepts (ABCD + visible morphology) bootstrapped from a foundation mod
 and hosts the fairness audit.
 
 \subsection{Concept bottleneck}
-A frozen encoder $f$ (DermLIP~\cite{dermlip2025}; DINOv2~\cite{oquab2024} as ablation)
+Figure~\ref{fig:arch} summarizes the architecture. A frozen encoder $f$
+(DermLIP~\cite{dermlip2025}; DINOv2~\cite{oquab2024} as ablation)
 maps an image $x$ to an embedding $z=f(x)$. A concept head $g$ predicts concept
 probabilities $\hat c=\sigma(g(z))\in[0,1]^K$; a diagnosis head $h$ predicts the label
 from concepts \emph{only}: $\hat y = h(\hat c)$. Only $g,h$ (small MLPs) are trained;
