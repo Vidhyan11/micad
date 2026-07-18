@@ -78,9 +78,10 @@ def main():
     ap.add_argument("--seeds", nargs="*", type=int, default=[0, 1, 2, 3, 4])
     ap.add_argument("--importance", default="gradient", choices=["gradient", "loo"])
     ap.add_argument("--cf_mode", default="flip", choices=["flip", "ablate"])
-    ap.add_argument("--ref_mode", default="zero", choices=["zero", "mean"],
-                    help="ablation reference: 'zero'=all-absent (clinical, stable), "
-                         "'mean'=train-average case")
+    ap.add_argument("--ref_mode", default="mean", choices=["mean", "zero"],
+                    help="ablation reference: 'mean'=train-average case (in-distribution, "
+                         "clean pure-vs-leaky contrast; default); 'zero'=all-absent "
+                         "(bigger perturbation, moves leaky too)")
     args = ap.parse_args()
 
     C.ensure_dirs()
