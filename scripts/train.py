@@ -58,20 +58,22 @@ def run_model_seed(spec, args, cfg, device):
                     binary_positive=binpos)
     out = {}
 
+    def _pref(dxm, concept=np.nan):
+        d = {f"dx_{k}": v for k, v in dxm.items()}
+        d["concept_mean_auroc"] = concept
+        return d
+
     io_model = T.train_image_only(data, cfg, device)
-    d = _eval_imageonly(io_model, data, device); d["concept_mean_auroc"] = np.nan
-    out["image-only"] = d
+    out["image-only"] = _pref(_eval_imageonly(io_model, data, device))
 
     if not spec["use_pseudo"]:                       # oracle needs real GT concepts
         _, oracle_logits = T.train_dx_from_concepts(data, cfg, device, use_gt=True)
-        d = M.dx_metrics(data.subset("test")[3], oracle_logits); d["concept_mean_auroc"] = np.nan
-        out["CBM-oracle"] = d
+        out["CBM-oracle"] = _pref(M.dx_metrics(data.subset("test")[3], oracle_logits))
 
     for mode in ["sequential"] + (["joint"] if args.joint else []):
         model = T.train_cbm(data, cfg, device, mode=mode)
         dx, con = _eval_cbm(model, data, device)
-        d = dict(dx); d["concept_mean_auroc"] = con["mean_auroc"]
-        out[f"CBM-{mode}"] = d
+        out[f"CBM-{mode}"] = _pref(dx, con["mean_auroc"])
     return out, data
 
 
