@@ -2,17 +2,14 @@
 
     !python /kaggle/working/micad/scripts/train.py --encoder dermlip
 
-Model A: derm7pt, dermoscopic concepts (REAL GT), 5-class dx.
-Model B: Fitzpatrick17k, clinical concepts (foundation PSEUDO), 3-class dx.
-
-Outputs (artifacts/):
-    checkpoints/<name>.pt            trained heads
-    results/exp1_diagnosis.csv       diagnosis + concept accuracy table
+Model A: derm7pt, dermoscopic concepts (REAL GT). Model B: Fitzpatrick17k, clinical
+concepts (foundation PSEUDO). Runs over multiple seeds and reports mean+/-std.
 """
 from __future__ import annotations
 
 import argparse
 import sys
+from collections import defaultdict
 from dataclasses import replace
 from pathlib import Path
 
@@ -24,19 +21,18 @@ import torch  # noqa: E402
 
 import fbc.config as C  # noqa: E402
 from fbc.eval import metrics as M  # noqa: E402
+from fbc.eval.bootstrap import fmt_ms, mean_std  # noqa: E402
 from fbc.train import train_cbm as T  # noqa: E402
 from fbc.train.data import assemble  # noqa: E402
 from fbc.utils import io  # noqa: E402
 
-# Primary task is CONCEPT-ALIGNED binary detection: the 7-pt checklist detects
-# melanoma; the clinical morphology concepts flag malignancy. binary_positive is a
-# dx_name value. Multiclass is available via --multiclass.
 SPECS = {
     "A": {"ds": "derm7pt", "use_pseudo": False, "label": "ModelA-dermoscopic(GT)",
           "binary_positive": "MEL"},
     "B": {"ds": "fitzpatrick17k", "use_pseudo": True, "label": "ModelB-clinical(pseudo)",
           "binary_positive": "malignant"},
 }
+METRICS = ["dx_bal_acc", "dx_auroc", "dx_f1_macro", "concept_mean_auroc"]
 
 
 def _eval_cbm(model, data, device):
@@ -55,10 +51,35 @@ def _eval_imageonly(model, data, device):
     return M.dx_metrics(yte, dxlogits.cpu().numpy())
 
 
+def run_model_seed(spec, args, cfg, device):
+    """One seed: returns {variant: {dx_bal_acc, dx_auroc, dx_f1_macro, concept_mean_auroc}}."""
+    binpos = None if args.multiclass else spec["binary_positive"]
+    data = assemble(spec["ds"], args.encoder, use_pseudo=spec["use_pseudo"],
+                    binary_positive=binpos)
+    out = {}
+
+    io_model = T.train_image_only(data, cfg, device)
+    d = _eval_imageonly(io_model, data, device); d["concept_mean_auroc"] = np.nan
+    out["image-only"] = d
+
+    if not spec["use_pseudo"]:                       # oracle needs real GT concepts
+        _, oracle_logits = T.train_dx_from_concepts(data, cfg, device, use_gt=True)
+        d = M.dx_metrics(data.subset("test")[3], oracle_logits); d["concept_mean_auroc"] = np.nan
+        out["CBM-oracle"] = d
+
+    for mode in ["sequential"] + (["joint"] if args.joint else []):
+        model = T.train_cbm(data, cfg, device, mode=mode)
+        dx, con = _eval_cbm(model, data, device)
+        d = dict(dx); d["concept_mean_auroc"] = con["mean_auroc"]
+        out[f"CBM-{mode}"] = d
+    return out, data
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--encoder", default="dermlip")
     ap.add_argument("--models", nargs="*", default=["A", "B"])
+    ap.add_argument("--seeds", nargs="*", type=int, default=[0, 1, 2, 3, 4])
     ap.add_argument("--joint", action="store_true", help="also train joint-mode CBM (ablation)")
     ap.add_argument("--multiclass", action="store_true",
                     help="use full multiclass dx instead of binary detection")
@@ -66,65 +87,42 @@ def main():
 
     C.ensure_dirs()
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    cfg = replace(C.DEFAULT_TRAIN, encoder=args.encoder, device=device)
-    print(f"device={device} encoder={args.encoder}")
+    base = replace(C.DEFAULT_TRAIN, encoder=args.encoder, device=device)
+    task = "multiclass" if args.multiclass else "binary detection"
+    print(f"device={device} encoder={args.encoder} seeds={args.seeds} task={task}")
 
     rows = []
     for key in args.models:
         spec = SPECS[key]
-        ds = spec["ds"]
-        binpos = None if args.multiclass else spec["binary_positive"]
-        task = "multiclass" if args.multiclass else f"binary:{binpos}"
-        print(f"\n===== Model {key}: {spec['label']}  ({ds}) | task={task} =====")
-        data = assemble(ds, args.encoder, use_pseudo=spec["use_pseudo"],
-                        binary_positive=binpos)
-        ntr = (data.split == "train").sum()
-        nte = (data.split == "test").sum()
-        npos = int((data.y[data.split == "test"] == 1).sum()) if data.n_classes == 2 else -1
-        print(f"  concepts={data.keys}")
-        print(f"  classes={data.n_classes} | train={ntr} test={nte}"
-              + (f" (test positives={npos})" if npos >= 0 else ""))
+        print(f"\n===== Model {key}: {spec['label']} ({spec['ds']}) =====")
+        per = defaultdict(lambda: defaultdict(list))   # variant -> metric -> [per seed]
+        for seed in args.seeds:
+            out, data = run_model_seed(spec, args, replace(base, seed=seed), device)
+            for variant, md in out.items():
+                for m in METRICS:
+                    per[variant][m].append(md.get(m, np.nan))
+            seq = out.get("CBM-sequential", {})
+            print(f"  seed {seed}: image-only AUROC={out['image-only']['dx_auroc']:.3f} "
+                  f"| CBM AUROC={seq.get('dx_auroc', float('nan')):.3f} "
+                  f"bal_acc={seq.get('dx_bal_acc', float('nan')):.3f}")
 
-        # baseline: image-only
-        io_model = T.train_image_only(data, cfg, device)
-        io_dx = _eval_imageonly(io_model, data, device)
-        torch.save(io_model.state_dict(), io.ckpt_path(f"imageonly_{ds}_{args.encoder}"))
-        print(f"  [image-only] dx: bal_acc={io_dx['bal_acc']:.3f} "
-              f"f1={io_dx['f1_macro']:.3f} auroc={io_dx['auroc']:.3f}")
-        rows.append({"model": key, "variant": "image-only", "dataset": ds,
-                     **{f"dx_{k}": v for k, v in io_dx.items()}, "concept_mean_auroc": np.nan})
-
-        # oracle bottleneck (Model A only — needs real GT concepts): ceiling of the
-        # concept SET, isolating concept-prediction error from concept-set limits.
-        if not spec["use_pseudo"]:
-            _, oracle_logits = T.train_dx_from_concepts(data, cfg, device, use_gt=True)
-            o_dx = M.dx_metrics(data.subset("test")[3], oracle_logits)
-            print(f"  [CBM-oracle(GT concepts)] dx: bal_acc={o_dx['bal_acc']:.3f} "
-                  f"f1={o_dx['f1_macro']:.3f} auroc={o_dx['auroc']:.3f}")
-            rows.append({"model": key, "variant": "CBM-oracle", "dataset": ds,
-                         **{f"dx_{k}": v for k, v in o_dx.items()},
-                         "concept_mean_auroc": np.nan})
-
-        # our CBM: sequential (+ optional joint)
-        modes = ["sequential"] + (["joint"] if args.joint else [])
-        for mode in modes:
-            model = T.train_cbm(data, cfg, device, mode=mode)
-            dx, con = _eval_cbm(model, data, device)
-            torch.save(model.state_dict(), io.ckpt_path(f"cbm_{ds}_{args.encoder}_{mode}"))
-            gt_note = "GT" if not spec["use_pseudo"] else "pseudo-fit"
-            print(f"  [CBM-{mode}] dx: bal_acc={dx['bal_acc']:.3f} f1={dx['f1_macro']:.3f} "
-                  f"auroc={dx['auroc']:.3f} | concept mean AUROC({gt_note})={con['mean_auroc']:.3f}")
-            print(f"             per-concept AUROC: "
-                  f"{{{', '.join(f'{k}:{v:.2f}' for k,v in con['per_concept'].items())}}}")
-            rows.append({"model": key, "variant": f"CBM-{mode}", "dataset": ds,
-                         **{f"dx_{k}": v for k, v in dx.items()},
-                         "concept_mean_auroc": con["mean_auroc"]})
+        for variant in per:
+            row = {"model": key, "variant": variant, "dataset": spec["ds"],
+                   "seeds": len(args.seeds)}
+            for m in METRICS:
+                mu, sd = mean_std(per[variant][m])
+                row[m] = mu; row[f"{m}_std"] = sd
+            rows.append(row)
+            print(f"  [{variant:16s}] dx AUROC={fmt_ms(*mean_std(per[variant]['dx_auroc']))} "
+                  f"bal_acc={fmt_ms(*mean_std(per[variant]['dx_bal_acc']))} "
+                  f"concept={fmt_ms(*mean_std(per[variant]['concept_mean_auroc']))}")
 
     tbl = pd.DataFrame(rows)
-    out = io.result_path("exp1_diagnosis")
-    tbl.to_csv(out, index=False)
-    print(f"\n=== Experiment 1 table ===\n{tbl.to_string(index=False)}")
-    print(f"\nsaved -> {out}")
+    out_path = io.result_path("exp1_diagnosis")
+    tbl.to_csv(out_path, index=False)
+    print(f"\n=== Experiment 1 (mean+/-std over {len(args.seeds)} seeds) ===")
+    print(tbl.to_string(index=False))
+    print(f"\nsaved -> {out_path}")
 
 
 if __name__ == "__main__":
