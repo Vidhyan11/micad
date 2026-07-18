@@ -42,6 +42,13 @@ def _test_tensors(data, device):
     return (torch.as_tensor(Xtr).to(device), torch.as_tensor(Xte).to(device))
 
 
+def _reference(concept_probs_train, ref_mode):
+    """Neutral reference for ablation: 'mean' = train-mean concepts (average case);
+    'zero' = all concepts absent (the clinically natural 'remove all evidence')."""
+    mean = concept_probs_train.mean(0)
+    return torch.zeros_like(mean) if ref_mode == "zero" else mean
+
+
 def run_seed(spec, args, cfg, device):
     """Train pure + leaky at one seed; return their faithfulness score dicts."""
     data = assemble(spec["ds"], args.encoder, use_pseudo=spec["use_pseudo"],
@@ -50,14 +57,14 @@ def run_seed(spec, args, cfg, device):
 
     pure = T.train_cbm(data, cfg, device, mode="sequential")
     with torch.no_grad():
-        ref = pure.predict_concepts(Xtr).mean(0)
+        ref = _reference(pure.predict_concepts(Xtr), args.ref_mode)
         cp_te = pure.predict_concepts(Xte)
     s_pure = faithfulness_scores(cp_te, lambda c: pure.diagnose_from_concepts(c),
                                  ref, args.importance, args.cf_mode, return_per_sample=True)
 
     leaky = T.train_leaky_cbm(data, cfg, device)
     with torch.no_grad():
-        ref_l = leaky.predict_concepts(Xtr).mean(0)
+        ref_l = _reference(leaky.predict_concepts(Xtr), args.ref_mode)
         lp_te = leaky.predict_concepts(Xte)
     s_leaky = faithfulness_scores(lp_te, lambda c: leaky.diagnose_from_concepts(c, Xte),
                                   ref_l, args.importance, args.cf_mode, return_per_sample=True)
@@ -71,13 +78,16 @@ def main():
     ap.add_argument("--seeds", nargs="*", type=int, default=[0, 1, 2, 3, 4])
     ap.add_argument("--importance", default="gradient", choices=["gradient", "loo"])
     ap.add_argument("--cf_mode", default="flip", choices=["flip", "ablate"])
+    ap.add_argument("--ref_mode", default="zero", choices=["zero", "mean"],
+                    help="ablation reference: 'zero'=all-absent (clinical, stable), "
+                         "'mean'=train-average case")
     args = ap.parse_args()
 
     C.ensure_dirs()
     device = "cuda" if torch.cuda.is_available() else "cpu"
     base = replace(C.DEFAULT_TRAIN, encoder=args.encoder, device=device)
     print(f"device={device} encoder={args.encoder} seeds={args.seeds} "
-          f"importance={args.importance} cf={args.cf_mode}")
+          f"importance={args.importance} cf={args.cf_mode} ref={args.ref_mode}")
 
     rows = []
     for key in args.models:
