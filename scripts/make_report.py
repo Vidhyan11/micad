@@ -42,6 +42,12 @@ def _emit(csv_name, fn, caption, label):
 
 def qualitative_figure(encoder, device, cfg):
     """Melanoma case: predicted concepts + counterfactual effects."""
+    meta = io.meta_path("derm7pt"); emb = io.emb_path("derm7pt", encoder)
+    if not meta.exists() or not emb.exists():
+        print(f"  [skip figure] missing {meta.name}/{emb.name}. This script must run "
+              f"where the artifacts live (Kaggle): run extract_embeddings + make_splits "
+              f"+ train first. Nothing to do locally.")
+        return
     data = assemble("derm7pt", encoder, use_pseudo=False, binary_positive="MEL")
     model = T.train_cbm(data, cfg, device, mode="sequential")
     Xte = torch.as_tensor(data.emb[data.split_mask("test")]).to(device)
