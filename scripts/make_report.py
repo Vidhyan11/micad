@@ -90,8 +90,20 @@ def main():
     _emit("exp3_fairness", tables.exp3_table,
           "Fairness of reasoning across Fitzpatrick groups, before/after "
           "group-conditional calibration.", "tab:exp3")
+    faithfulness_figure()
     qualitative_figure(args.encoder, device, cfg)
     print("\nDONE.")
+
+
+def faithfulness_figure():
+    """Figure 3: faithfulness bar chart from exp2_faithfulness.csv."""
+    p = io.result_path("exp2_faithfulness")
+    if not p.exists():
+        print("  [skip figure] exp2_faithfulness.csv not found — run faithfulness.py first")
+        return
+    out = C.FIG_DIR / "faithfulness_bars.png"
+    figures.faithfulness_bar_chart(pd.read_csv(p), out)
+    print(f"\n=== Faithfulness figure ===\n-> {out}")
 
 
 if __name__ == "__main__":

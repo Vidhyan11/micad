@@ -38,11 +38,13 @@ The template may already contain `svproc.cls`; if not, upload it as noted above.
 - **Menu** (top-left) → **Main document** → choose the file you pasted into.
   (Overleaf usually auto-detects the one with `\documentclass`.)
 
-### 6. Add the figure
-- Download `qualitative_melanoma.png` from Kaggle (see "Getting the figure" below).
-- In Overleaf, click the **Upload** icon (up-arrow, top-left) → upload the PNG.
-- It must sit in the **project root** (same level as `main.tex`) — our file references it as
-  `qualitative_melanoma.png` with no folder.
+### 6. Add the figures
+The paper has 3 figures: Fig 1 (architecture) is drawn in TikZ inside `main.tex` — **no
+file needed**. Figs 2 and 3 are PNGs you upload:
+- Download **`qualitative_melanoma.png`** and **`faithfulness_bars.png`** from Kaggle
+  (both are produced by `make_report.py`; see "Getting the figure" below).
+- In Overleaf, click the **Upload** icon (up-arrow, top-left) → upload **both** PNGs.
+- They must sit in the **project root** (same level as `main.tex`) — referenced with no folder.
 
 ### 7. Compile
 - Click the green **Recompile** button. The PDF appears on the right.

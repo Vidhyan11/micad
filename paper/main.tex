@@ -257,11 +257,22 @@ B & leaky & 0.108 & 0.103 & 0.020 & 0.780\\[2pt]
 
 The pure bottleneck's decisions genuinely depend on its concepts (reliance 0.223
 [0.212,0.236]) while the leaky model---displaying the same concepts---is causally inert
-(reliance 0.000): flipping or erasing its concepts does not move the decision. The
-pure$-$leaky gap is significant (Model A $\Delta=0.223$ [0.211,0.236]; Model B
-$\Delta=0.100$ [0.094,0.106]). Strikingly, the leaky model scores \emph{higher}
-rank-agreement (ccf\_corr 0.819 vs.\ 0.605)---a concrete demonstration that
-rank-correlation faithfulness is magnitude-blind and would certify an unfaithful model.
+(reliance 0.000): flipping or erasing its concepts does not move the decision
+(Fig.~\ref{fig:faith}). The pure$-$leaky gap is significant (Model A $\Delta=0.223$
+[0.211,0.236]; Model B $\Delta=0.100$ [0.094,0.106]). Strikingly, the leaky model
+scores \emph{higher} rank-agreement (ccf\_corr 0.819 vs.\ 0.605)---a concrete
+demonstration that rank-correlation faithfulness is magnitude-blind and would certify
+an unfaithful model.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.9\textwidth]{faithfulness_bars.png}
+\caption{Faithfulness by model and variant (95\% CI). The pure bottleneck relies on
+its concepts, while the leaky model---despite displaying the same concepts---is
+causally inert (Model A reliance $\approx 0$). Magnitude-aware metrics expose the
+difference that rank-correlation misses.}
+\label{fig:faith}
+\end{figure}
 
 \subsection{Fairness of reasoning}
 \begin{table}[t]
