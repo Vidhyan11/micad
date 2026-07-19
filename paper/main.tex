@@ -319,26 +319,27 @@ and dark-skin variance is higher (V--VI $n=407$), which we note as a limitation.
 
 \subsection{Encoder ablation and qualitative}
 \begin{table}[t]
-\caption{Encoder ablation (Model A, melanoma detection).}
+\caption{Encoder ablation (Model A, melanoma detection); mean$\pm$std over 5 seeds.}
 \label{tab:exp4a}
 \begin{center}
-\begin{tabular}{lcccc}
+\begin{tabular}{lccc}
 \hline\rule{0pt}{12pt}
-Encoder & dx bal-acc & dx AUROC & concept AUROC & reliance\\[2pt]
+Encoder & dx AUROC & concept AUROC & reliance\\[2pt]
 \hline\rule{0pt}{12pt}
-DINOv2 (general) & 0.759 & 0.849 & 0.782 & 0.155\\
-DermLIP (derm) & 0.777 & 0.852 & \textbf{0.827} & \textbf{0.223}\\[2pt]
+DINOv2 (general) & 0.845$\pm$0.004 & 0.781$\pm$0.001 & 0.118$\pm$0.023\\
+DermLIP (derm) & 0.848$\pm$0.009 & \textbf{0.827$\pm$0.001} & 0.091$\pm$0.084\\[2pt]
 \hline
 \end{tabular}
 \end{center}
 \end{table}
 
-As Table~\ref{tab:exp4a} shows, at near-identical diagnosis AUROC the dermatology
-encoder yields better concept prediction (0.827 vs.\ 0.782) and more faithful reasoning
-(reliance 0.223 vs.\ 0.155):
-domain pretraining buys faithful concepts, not merely accuracy. Fig.~\ref{fig:qual}
-shows a melanoma case with predicted concepts and the counterfactual concept whose flip
-most changes the decision.
+As Table~\ref{tab:exp4a} shows, at essentially identical diagnosis AUROC ($0.848$ vs.\
+$0.845$) the dermatology encoder predicts the dermatologist concepts markedly more
+accurately ($0.827\pm0.001$ vs.\ $0.781\pm0.001$; non-overlapping); reasoning
+faithfulness (reliance) is comparable across encoders. Domain pretraining thus improves
+concept \emph{prediction} specifically---and, via its text tower, enables the
+pseudo-label bootstrap. Fig.~\ref{fig:qual} shows a melanoma case with predicted
+concepts and the counterfactual concept whose flip most changes the decision.
 
 \begin{figure}[t]
 \centering
