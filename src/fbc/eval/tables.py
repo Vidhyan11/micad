@@ -36,12 +36,14 @@ def exp2_table(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def exp3_table(df: pd.DataFrame) -> pd.DataFrame:
-    """Fairness of reasoning per Fitzpatrick group, before/after mitigation."""
+    """Fairness of reasoning per Fitzpatrick group (multi-seed), before/after."""
     out = df.copy()
-    for c in ("dx_bal_acc", "dx_auroc", "reliance", "comprehensiveness"):
-        out[c] = out[c].map("{:.3f}".format)
-    return out[["phase", "group", "n", "dx_bal_acc", "dx_auroc",
-                "reliance", "comprehensiveness"]]
+    cols = [c for c in ("phase", "group", "dx_bal_acc", "reliance",
+                        "comprehensiveness") if c in out.columns]
+    for c in ("dx_bal_acc", "reliance", "comprehensiveness"):
+        if c in out.columns:
+            out[c] = out[c].map("{:.3f}".format)
+    return out[cols]
 
 
 def to_latex(df: pd.DataFrame, caption: str, label: str) -> str:

@@ -87,9 +87,9 @@ def main():
     _emit("exp2_faithfulness", tables.exp2_table,
           "Concept-counterfactual faithfulness (95\\% CI). Higher reliance/"
           "comprehensiveness = more faithful.", "tab:exp2")
-    _emit("exp3_fairness", tables.exp3_table,
-          "Fairness of reasoning across Fitzpatrick groups, before/after "
-          "group-conditional calibration.", "tab:exp3")
+    _emit("exp3_fairness_diverse", tables.exp3_table,
+          "Fairness of reasoning across Fitzpatrick groups (diverse-training regime, "
+          "multi-seed), before/after group-conditional calibration.", "tab:exp3")
     faithfulness_figure()
     qualitative_figure(args.encoder, device, cfg)
     print("\nDONE.")
