@@ -278,7 +278,11 @@ near-inert leaky model ($\approx\!0$), whose decisions the concepts do not drive
 (Fig.~\ref{fig:faith}). Strikingly, the leaky model scores \emph{higher} rank-agreement
 (ccf\_corr 0.86 vs.\ 0.43 on Model A)---a concrete demonstration that rank-correlation
 faithfulness is magnitude-blind and would certify an unfaithful model, motivating the
-magnitude-aware measures.
+magnitude-aware measures. The result is not specific to the gradient attribution:
+defining stated importance by leave-one-out instead gives essentially the same
+comprehensiveness (Model~A $0.059$ vs.\ $0.053$; Model~B $0.143$ vs.\ $0.150$), and both
+exceed a random-importance baseline (Model~B $0.150$ vs.\ $0.123$)---the stated-important
+concepts are the more load-bearing ones.
 
 \begin{figure}[t]
 \centering
