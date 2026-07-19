@@ -241,6 +241,12 @@ clinical task Model B trails image-only by a modest margin ($0.789$ vs.\ $0.893$
 clinical bootstrap validates externally against PAD-UFES \texttt{elevation} (AUROC
 0.63); absolute size was not recoverable from crops (0.55) and was dropped.
 
+\noindent\textbf{Concept completeness.} The concept layer captures nearly all of the
+image's diagnostic signal: the concepts-only CBM retains $99\%$ of the image-only AUROC
+($0.848/0.856$), and ground-truth concepts \emph{exceed} the full image ($0.920$ vs.\
+$0.856$). The 7-point concept set is thus a near-complete---and, for melanoma,
+superior---task representation, so bottlenecking through it sacrifices little.
+
 \subsection{Faithfulness}
 We compare the pure bottleneck against a \emph{leaky} CBM whose diagnosis head sees
 concepts \emph{and} the embedding.
