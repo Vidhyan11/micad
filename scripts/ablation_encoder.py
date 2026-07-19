@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections import defaultdict
 from dataclasses import replace
 from pathlib import Path
 
@@ -22,10 +23,13 @@ import torch  # noqa: E402
 
 import fbc.config as C  # noqa: E402
 from fbc.eval import metrics as MET  # noqa: E402
+from fbc.eval.bootstrap import fmt_ms, mean_std  # noqa: E402
 from fbc.faithfulness import faithfulness_scores  # noqa: E402
 from fbc.train import train_cbm as T  # noqa: E402
 from fbc.train.data import assemble  # noqa: E402
 from fbc.utils import io  # noqa: E402
+
+METRICS = ["dx_bal_acc", "dx_auroc", "concept_auroc", "reliance"]
 
 SPECS = {
     "A": {"ds": "derm7pt", "use_pseudo": False, "binary_positive": "MEL"},
@@ -62,23 +66,40 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--encoders", nargs="*", default=["dinov2", "dermlip"])
     ap.add_argument("--models", nargs="*", default=["A", "B"])
+    ap.add_argument("--seeds", nargs="*", type=int, default=[0, 1, 2, 3, 4])
     args = ap.parse_args()
     C.ensure_dirs()
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"device={device} seeds={args.seeds}")
 
     rows = []
     for enc in args.encoders:
-        cfg = replace(C.DEFAULT_TRAIN, encoder=enc, device=device)
         for mk in args.models:
-            print(f"  running Model {mk} on {enc} ...")
+            print(f"  Model {mk} on {enc} ...")
+            per = defaultdict(list)
             try:
-                rows.append(run(mk, enc, cfg, device))
+                for seed in args.seeds:
+                    cfg = replace(C.DEFAULT_TRAIN, encoder=enc, device=device, seed=seed)
+                    r = run(mk, enc, cfg, device)
+                    for m in METRICS:
+                        per[m].append(r[m])
             except FileNotFoundError as e:
                 print(f"    SKIP ({e}); extract embeddings/pseudo for {enc} first")
+                continue
+            row = {"model": mk, "encoder": enc, "seeds": len(args.seeds)}
+            for m in METRICS:
+                mu, sd = mean_std(per[m]); row[m] = mu; row[f"{m}_std"] = sd
+            rows.append(row)
+            print(f"    dx AUROC={fmt_ms(*mean_std(per['dx_auroc']))} "
+                  f"concept={fmt_ms(*mean_std(per['concept_auroc']))} "
+                  f"reliance={fmt_ms(*mean_std(per['reliance']))}")
+
     tbl = pd.DataFrame(rows)
     out = io.result_path("exp4a_encoder_ablation")
     tbl.to_csv(out, index=False)
-    print(f"\n=== Experiment 4a: encoder ablation ===\n{tbl.to_string(index=False)}\n-> {out}")
+    print(f"\n=== Experiment 4a: encoder ablation (mean+/-std over {len(args.seeds)} seeds) ===")
+    print(tbl.to_string(index=False))
+    print(f"-> {out}")
 
 
 if __name__ == "__main__":
