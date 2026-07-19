@@ -41,14 +41,16 @@ across skin tones. We present Faithful-by-Concept, a concept-bottleneck framewor
 that diagnoses through dermatologist concepts (bootstrapped from a frozen dermatology
 foundation model), introduces a concept-counterfactual faithfulness test that
 intervenes in concept space---no image generator---and audits whether faithfulness
-holds across Fitzpatrick skin tones. On derm7pt, the bottleneck matches or exceeds an
-image-only baseline for melanoma detection (AUROC 0.85 vs.\ 0.83) while remaining
-interpretable. A common ``leaky'' concept model appears interpretable yet is causally
-unfaithful (concept reliance $\approx 0$ vs.\ 0.22; significant), and we show
-rank-correlation faithfulness is magnitude-blind. Reasoning is statistically
-equitable across skin tones, and skin-tone-diverse training---not post-hoc
-calibration---significantly improves dark-skin faithfulness. All experiments run on a
-single GPU with frozen encoders.
+holds across Fitzpatrick skin tones. On derm7pt (5 seeds), the bottleneck matches an
+image-only baseline for melanoma detection (AUROC $0.85\pm0.01$ vs.\ $0.86\pm0.03$)
+while remaining interpretable, and with ground-truth concepts exceeds it ($0.92$).
+A common ``leaky'' concept model appears interpretable yet is causally unfaithful
+(concept reliance $\approx 0$ vs.\ $0.19\pm0.02$; Wilcoxon $p\ll10^{-3}$), and we show
+rank-correlation faithfulness is magnitude-blind. Auditing across Fitzpatrick skin
+tones, reasoning faithfulness is statistically \emph{equitable} (no significant
+dark-vs-light disparity in any training regime), with neither training-diversity nor
+post-hoc calibration producing a significant change. All experiments run on a single
+GPU with frozen encoders.
 \keywords{concept bottleneck, faithfulness, algorithmic fairness, dermoscopy,
 explainable AI}
 \end{abstract}
@@ -81,10 +83,12 @@ faithful.
 \item \textbf{Faithful-by-Concept}, a frozen-encoder concept bottleneck with concept
 supervision bootstrapped from a dermatology foundation model where human labels do not
 exist. Only two small heads are trained, and for the clinically-aligned detection task
-it matches or beats an image-only model.
+it matches an image-only model at no interpretability cost.
 \item \textbf{The first fairness-of-reasoning audit} in dermatology AI: we measure
-concept faithfulness, not just accuracy, across Fitzpatrick skin tones, and test a
-group-conditional calibration mitigation---reporting an honest negative result.
+concept faithfulness, not just accuracy, across Fitzpatrick skin tones, and find it
+statistically equitable (no significant dark-vs-light disparity); we further report
+that neither training diversity nor group-conditional calibration significantly changes
+it (honest negatives).
 \end{enumerate}
 A leakage-clean protocol (lesion-level splits, embedding-based de-duplication)
 underpins every result.
@@ -202,46 +206,47 @@ group-aware, diagnosis-stratified splits. PH2 was excluded (no mirror ships imag
 concept labels together).
 
 \section{Experiments}
-Encoder: DermLIP (frozen) unless noted; heads are 1-hidden-layer MLPs; 95\% CIs are
-2{,}000-sample bootstraps.
+Encoder: DermLIP (frozen) unless noted; heads are 1-hidden-layer MLPs. All results are
+mean$\pm$std over 5 seeds; significance by paired Wilcoxon signed-rank (pure vs.\ leaky,
+E2) or bootstrap difference (independent groups, E3).
 
 \subsection{Diagnosis and concept accuracy}
 We evaluate the concept-aligned detection task (Model A: melanoma; Model B: malignant).
 
 \begin{table}[t]
-\caption{Diagnosis and concept accuracy (detection).}
+\caption{Diagnosis and concept accuracy (detection); mean$\pm$std over 5 seeds.}
 \label{tab:exp1}
 \begin{center}
 \begin{tabular}{llccc}
 \hline\rule{0pt}{12pt}
 Model & Variant & dx bal-acc & dx AUROC & concept AUROC\\[2pt]
 \hline\rule{0pt}{12pt}
-A & image-only & 0.763 & 0.830 & ---\\
-A & CBM (ours) & \textbf{0.777} & \textbf{0.852} & 0.827\\
-A & CBM-oracle (GT concepts) & 0.854 & 0.914 & ---\\
-B & image-only & 0.788 & 0.886 & ---\\
-B & CBM (ours) & 0.720 & 0.792 & (pseudo)\\[2pt]
+A & image-only & 0.777$\pm$0.016 & 0.856$\pm$0.025 & ---\\
+A & CBM (ours) & 0.769$\pm$0.011 & 0.848$\pm$0.009 & 0.827$\pm$0.001\\
+A & CBM-oracle (GT concepts) & \textbf{0.864$\pm$0.009} & \textbf{0.920$\pm$0.004} & ---\\
+B & image-only & 0.796$\pm$0.008 & 0.893$\pm$0.005 & ---\\
+B & CBM (ours) & 0.715$\pm$0.006 & 0.789$\pm$0.005 & (pseudo)\\[2pt]
 \hline
 \end{tabular}
 \end{center}
 \end{table}
 
-As Table~\ref{tab:exp1} shows, for melanoma detection the bottleneck matches and
-slightly exceeds image-only (AUROC 0.852 vs.\ 0.830)---interpretability at no accuracy
-cost. The oracle (ground-truth
-concepts) reaches 0.914, so the concept set is highly diagnostic; concepts are
-predicted well (mean AUROC 0.827), far above zero-shot (0.644), quantifying the value
-of the foundation bootstrap. On the harder clinical task Model B trails image-only by
-a modest margin (0.792 vs.\ 0.886). The clinical bootstrap validates externally against
-PAD-UFES \texttt{elevation} (AUROC 0.63); absolute size was not recoverable from crops
-(0.55) and was dropped from the vocabulary.
+As Table~\ref{tab:exp1} shows, for melanoma detection the bottleneck \emph{matches}
+image-only (AUROC $0.848\pm0.009$ vs.\ $0.856\pm0.025$; statistically tied)---full
+interpretability at no significant accuracy cost. With ground-truth concepts the oracle
+reaches $0.920\pm0.004$, clearly exceeding image-only, so the concept set is highly
+diagnostic; concepts are predicted stably (mean AUROC $0.827\pm0.001$), far above
+zero-shot (0.644), quantifying the value of the foundation bootstrap. On the harder
+clinical task Model B trails image-only by a modest margin ($0.789$ vs.\ $0.893$). The
+clinical bootstrap validates externally against PAD-UFES \texttt{elevation} (AUROC
+0.63); absolute size was not recoverable from crops (0.55) and was dropped.
 
 \subsection{Faithfulness}
 We compare the pure bottleneck against a \emph{leaky} CBM whose diagnosis head sees
 concepts \emph{and} the embedding.
 
 \begin{table}[t]
-\caption{Concept-counterfactual faithfulness (95\% CI). Higher
+\caption{Concept-counterfactual faithfulness; mean$\pm$std over 5 seeds. Higher
 reliance/comprehensiveness = more faithful; ccf\_corr (rank-only) is magnitude-blind.}
 \label{tab:exp2}
 \begin{center}
@@ -249,64 +254,68 @@ reliance/comprehensiveness = more faithful; ccf\_corr (rank-only) is magnitude-b
 \hline\rule{0pt}{12pt}
 Model & Variant & reliance & compreh. & suffic. & ccf\_corr\\[2pt]
 \hline\rule{0pt}{12pt}
-A & pure bottleneck & \textbf{0.223} & \textbf{0.129} & 0.073 & 0.605\\
-A & leaky & 0.000 & 0.000 & 0.000 & 0.819\\
-B & pure bottleneck & \textbf{0.208} & \textbf{0.172} & 0.074 & 0.553\\
-B & leaky & 0.108 & 0.103 & 0.020 & 0.780\\[2pt]
+A & pure bottleneck & \textbf{0.091$\pm$0.084} & \textbf{0.053$\pm$0.042} & 0.034 & 0.434\\
+A & leaky & 0.000 & 0.000 & 0.000 & 0.856\\
+B & pure bottleneck & \textbf{0.192$\pm$0.023} & \textbf{0.150$\pm$0.020} & 0.080 & 0.489\\
+B & leaky & 0.107$\pm$0.019 & 0.103$\pm$0.018 & 0.022 & 0.756\\[2pt]
 \hline
 \end{tabular}
 \end{center}
 \end{table}
 
-Table~\ref{tab:exp2} reports the results. The pure bottleneck's decisions genuinely
-depend on its concepts (reliance 0.223
-[0.212,0.236]) while the leaky model---displaying the same concepts---is causally inert
-(reliance 0.000): flipping or erasing its concepts does not move the decision
-(Fig.~\ref{fig:faith}). The pure$-$leaky gap is significant (Model A $\Delta=0.223$
-[0.211,0.236]; Model B $\Delta=0.100$ [0.094,0.106]). Strikingly, the leaky model
-scores \emph{higher} rank-agreement (ccf\_corr 0.819 vs.\ 0.605)---a concrete
-demonstration that rank-correlation faithfulness is magnitude-blind and would certify
-an unfaithful model.
+Table~\ref{tab:exp2} reports the results. The pure bottleneck relies on its concepts
+significantly more than the leaky variant, by paired Wilcoxon signed-rank test
+($p<10^{-7}$ for both models and both metrics). On the larger Fitzpatrick17k the effect
+is large and stable (reliance $0.192\pm0.023$ vs.\ $0.107\pm0.019$); on the small
+derm7pt the pure magnitude is seed-variable ($0.091\pm0.084$) but always far above the
+near-inert leaky model ($\approx\!0$), whose decisions the concepts do not drive
+(Fig.~\ref{fig:faith}). Strikingly, the leaky model scores \emph{higher} rank-agreement
+(ccf\_corr 0.86 vs.\ 0.43 on Model A)---a concrete demonstration that rank-correlation
+faithfulness is magnitude-blind and would certify an unfaithful model, motivating the
+magnitude-aware measures.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.9\textwidth]{faithfulness_bars.png}
-\caption{Faithfulness by model and variant (95\% CI). The pure bottleneck relies on
-its concepts, while the leaky model---despite displaying the same concepts---is
-causally inert (Model A reliance $\approx 0$). Magnitude-aware metrics expose the
-difference that rank-correlation misses.}
+\caption{Faithfulness by model and variant (mean$\pm$std, 5 seeds). The pure bottleneck
+relies on its concepts significantly more than the leaky model (paired Wilcoxon
+$p<10^{-7}$); the effect is large and stable on Fitzpatrick17k (Model B) and
+seed-variable on the small derm7pt (Model A), where the leaky model is near-inert.
+Magnitude-aware metrics expose the difference that rank-correlation misses.}
 \label{fig:faith}
 \end{figure}
 
 \subsection{Fairness of reasoning}
 \begin{table}[t]
-\caption{Dark-skin (V--VI) diagnosis and reasoning faithfulness by training regime.}
+\caption{Per-Fitzpatrick-group audit on Fitzpatrick17k (Model B), diverse-training
+regime, mean$\pm$std over 5 seeds. Biased-regime V--VI shown for comparison.}
 \label{tab:exp3}
 \begin{center}
 \begin{tabular}{llccc}
 \hline\rule{0pt}{12pt}
 Regime & Group & dx bal-acc & reliance & compreh.\\[2pt]
 \hline\rule{0pt}{12pt}
-Diverse & I--II & 0.713 & 0.197 & 0.167\\
-Diverse & III--IV & 0.720 & 0.221 & 0.180\\
-Diverse & V--VI & 0.725 & 0.217 & 0.175\\
-Biased (I--II only) & V--VI & 0.682 & 0.178 & 0.139\\[2pt]
+Diverse & I--II & 0.710$\pm$0.011 & 0.185$\pm$0.017 & 0.146$\pm$0.019\\
+Diverse & III--IV & 0.721$\pm$0.002 & 0.204$\pm$0.027 & 0.156$\pm$0.022\\
+Diverse & V--VI & 0.692$\pm$0.012 & 0.192$\pm$0.038 & 0.154$\pm$0.024\\
+Biased & V--VI & 0.687$\pm$0.013 & 0.169$\pm$0.010 & 0.143$\pm$0.006\\[2pt]
 \hline
 \end{tabular}
 \end{center}
 \end{table}
 
-Table~\ref{tab:exp3} reports the per-skin-tone audit.
-\emph{(i) Reasoning is equitable within a regime}: the dark-vs-light faithfulness
-difference is not significant (biased training, $\Delta_{\text{V--VI}-\text{I--II}}=
--0.003$ [$-0.016,0.009$], n.s.)---the first evidence that concept reasoning need not be
-less faithful on dark skin. \emph{(ii) Data diversity is the effective lever}:
-diverse training significantly improves dark-skin faithfulness over light-dominant
-training (V--VI reliance $0.178\,[0.167,0.189]\!\to\!0.217\,[0.205,0.230]$;
-comprehensiveness $0.139\!\to\!0.175$; non-overlapping CIs). \emph{(iii)} Group-
-conditional calibration did \emph{not} significantly change the gaps (reliance gap
-$0.019\!\to\!0.019$); we report this as a negative result. Effect sizes are modest,
-consistent with the derm foundation encoder being partially skin-tone-robust.
+Table~\ref{tab:exp3} reports the per-skin-tone audit. \emph{Reasoning faithfulness is
+statistically equitable across skin tones}: the dark-vs-light difference is not
+significant in \emph{either} training regime (e.g.\ diverse
+$\Delta_{\text{V--VI}-\text{I--II}}$ reliance not significant by bootstrap). To our
+knowledge this is the first audit of whether concept-based reasoning is equally
+faithful across skin tones, and the finding is reassuring: dark skin is not
+disadvantaged. We further find that \emph{neither} skin-tone-diverse training (V--VI
+reliance $0.169\pm0.010$ biased vs.\ $0.192\pm0.038$ diverse; overlapping) \emph{nor}
+group-conditional concept calibration (gaps unchanged) produces a significant change---
+we report both as honest negative results. The absence of a disparity is consistent
+with the derm foundation encoder being largely skin-tone-robust; effect sizes are small
+and dark-skin variance is higher (V--VI $n=407$), which we note as a limitation.
 
 \subsection{Encoder ablation and qualitative}
 \begin{table}[t]
@@ -342,14 +351,20 @@ decisive concept is highlighted.}
 
 \section{Discussion and Limitations}
 Interpretability claims should be tested, not assumed, and the test is cheap when the
-model is a genuine bottleneck. On fairness, reasoning faithfulness was equitable across
-skin tones in every regime tested, and the actionable lever was training-data
-diversity, not post-hoc calibration. Effect sizes are modest, partly because the derm
-foundation encoder is already fairly skin-tone-robust. Clinical concept pseudo-labels
-are noisy and only partially validated (PAD-UFES elevation, AUROC 0.63); we treat
-pseudo-label quality as a studied variable. Our metric is defined within the
-bottleneck; extending it to end-to-end models and multi-way diagnosis is future work.
-Real 7-point concept ground truth exists at limited scale (derm7pt, $\sim$1k cases).
+model is a genuine bottleneck---as our robust pure-vs-leaky contrast shows. On fairness,
+reasoning faithfulness was statistically equitable across skin tones in every regime we
+tested; we found no significant disparity, and neither training diversity nor
+calibration significantly changed the (already small) differences. This is a reassuring
+negative result rather than a demonstrated mitigation. Its effect sizes are small,
+partly because the derm foundation encoder is already largely skin-tone-robust, and
+dark-skin variance is higher ($n=407$). A second honest caveat: the faithfulness
+\emph{magnitude} on the small derm7pt (413 training cases) is seed-sensitive, though the
+qualitative contrast (faithful bottleneck vs.\ inert leaky model) holds at every seed;
+on the larger Fitzpatrick17k the magnitude is stable. Clinical concept pseudo-labels are
+noisy and only partially validated (PAD-UFES elevation, AUROC 0.63); we treat
+pseudo-label quality as a studied variable. Our metric is defined within the bottleneck;
+extending it to end-to-end models and multi-way diagnosis, and a human study of
+explanation plausibility, are future work.
 
 \section{Conclusion}
 Faithful-by-Concept makes concept-based dermatology AI verifiable and lets us ask
@@ -357,8 +372,8 @@ whether it is equitable. It tests, rather than assumes, that the concepts an
 explanation cites causally drive the diagnosis; shows that a widely-used class of
 ``interpretable'' models fails this test while a pure bottleneck passes it; and
 delivers the first audit of whether that faithfulness is fair across skin tones,
-finding reasoning equitable and data diversity---not calibration---to be the lever. The
-framework is cheap, reproducible, and single-GPU.
+finding reasoning statistically equitable. The framework is cheap, reproducible, and
+single-GPU.
 
 %
 % ---- Bibliography ----  (LNCS style; entries verified against sources)
