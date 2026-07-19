@@ -55,6 +55,8 @@ def stated_importance(concept_probs: torch.Tensor, predict_fn: PredictFn,
         return counterfactual_effect(concept_probs, predict_fn, yhat,
                                      mode="ablate", reference=torch.zeros(
                                          concept_probs.shape[1], device=concept_probs.device))
+    if method == "random":                    # control: importance carries no signal
+        return torch.rand_like(concept_probs)
     raise ValueError(method)
 
 
