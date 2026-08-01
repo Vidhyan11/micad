@@ -58,11 +58,12 @@ image-only baseline for melanoma detection (AUROC $0.85\pm0.01$ vs.\ $0.86\pm0.0
 while remaining interpretable, and with ground-truth concepts exceeds it ($0.92$).
 A common ``leaky'' concept model appears interpretable yet is causally unfaithful
 (concept reliance $\approx 0$ vs.\ $0.19\pm0.02$; Wilcoxon $p\ll10^{-3}$), and we show
-rank-correlation faithfulness is magnitude-blind. Auditing across Fitzpatrick skin
-tones, we detect \emph{no significant} dark-vs-light disparity in reasoning faithfulness
-in any training regime---evidence of equity on the evaluated data, though limited by
-darker-subgroup sample size---and neither training-diversity nor post-hoc calibration
-produces a significant change. All experiments run on a single GPU with frozen encoders.
+rank-correlation faithfulness is magnitude-blind. Across Fitzpatrick skin tones we
+detect no significant dark-vs-light disparity in reasoning faithfulness (on the
+evaluated data; limited by darker-subgroup size), and neither training-diversity nor
+calibration changes it significantly. All experiments run on a single frozen-encoder
+GPU pipeline. In pursuit of trustworthy, equitable skin-cancer detection, this work
+supports UN Sustainable Development Goal~3 (Good Health and Well-Being).
 \keywords{concept bottleneck, faithfulness, algorithmic fairness, dermoscopy,
 explainable AI}
 \end{abstract}
@@ -103,7 +104,10 @@ that neither training diversity nor group-conditional calibration significantly 
 it (honest negatives).
 \end{enumerate}
 A leakage-clean protocol (lesion-level splits, embedding-based de-duplication)
-underpins every result.
+underpins every result. By making computer-aided melanoma detection both verifiable and
+equitable, this work directly advances UN Sustainable Development Goal~3 (Good Health and
+Well-Being), whose targets include reducing premature mortality from cancers and
+ensuring health equity for all populations.
 
 \section{Related Work}
 
@@ -453,7 +457,9 @@ explanation cites causally drive the diagnosis; shows that a widely-used class o
 ``interpretable'' models fails this test while a pure bottleneck passes it; and
 delivers the first audit of whether that faithfulness is fair across skin tones,
 finding no significant dark-vs-light disparity on the evaluated datasets. The framework
-is cheap, reproducible, and single-GPU.
+is cheap, reproducible, and single-GPU. By advancing trustworthy and equitable
+skin-cancer diagnosis, Faithful-by-Concept contributes to UN Sustainable Development
+Goal~3 (Good Health and Well-Being).
 
 %
 % ---- Bibliography ----  (LNCS style; entries verified against sources)
