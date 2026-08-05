@@ -29,3 +29,6 @@ env/
 Thumbs.db
 .vscode/
 .idea/
+
+# camera-ready staging (derived figures/zips)
+/submission/
