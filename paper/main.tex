@@ -21,28 +21,27 @@
 %
 \titlerunning{Faithful-by-Concept}
 %
-\author{B.~Aswathi\inst{1} \and Vidhyadharan~B.\inst{1} \and R.~Suganya\inst{1}$^{\ast}$ \and
-Girish~H.~Subramanian\inst{2} \and Nagesparan~Aimarappan\inst{3} \and
-S.~Vijayaragavan\inst{4}}
+\author{B.~Aswathi\inst{1} \and Vidhyadharan~B.\inst{1} \and R.~Suganya*\inst{1} \and
+Nagesparan~Ainarappan \inst{2} \and S.~Vijayaragavan\inst{3} \and
+Girish~H.~Subramanian\inst{4}}
 %
 \authorrunning{B. Aswathi et al.}
 %
-\tocauthor{B. Aswathi, Vidhyadharan B., R. Suganya, Girish H. Subramanian,
-Nagesparan Aimarappan, S. Vijayaragavan}
+\tocauthor{B. Aswathi, Vidhyadharan B., R. Suganya*, Nagesparan Ainarappan, 
+ S. Vijayaragavan, Girish H. Subramanian}
 %
 \institute{Vellore Institute of Technology, Chennai, India\\
 \email{aswathi.b2023@vitstudent.ac.in, vidhyadharan.b2023@vitstudent.ac.in,
-suganya.ramamoorthy@vit.ac.in}\\
-$^{\ast}$Corresponding author: R.~Suganya (suganya.ramamoorthy@vit.ac.in)
-\and
-Penn State University Harrisburg, Harrisburg, USA\\
-\email{ghs2@psu.edu}
+suganya.ramamoorthy@vit.ac.in*}
 \and
 UCSI University, Kuala Lumpur, Malaysia\\
 \email{Nagesparan@ucsiuniversity.edu.my}
 \and
 Nelco (Tata Group), India\\
-\email{vijaysarainn@gmail.com}}
+\email{vijaysarainn@gmail.com}
+\and
+Penn State University Harrisburg, Harrisburg, USA\\
+\email{ghs2@psu.edu}}
 
 \maketitle
 %
@@ -323,7 +322,8 @@ B & leaky & 0.107$\pm$0.019 & 0.103$\pm$0.018 & 0.022 & 0.756\\[2pt]
 \end{center}
 \end{table}
 
-Table~\ref{tab:exp2} reports the results. The pure bottleneck relies on its concepts
+Table~\ref{tab:exp2} reports the results and Figure~\ref{fig:faith} visualizes the
+contrast. The pure bottleneck relies on its concepts
 significantly more than the leaky variant, by paired Wilcoxon signed-rank test
 ($p<10^{-7}$ for both models and both metrics). On the larger Fitzpatrick17k the effect
 is large and stable (reliance $0.192\pm0.023$ vs.\ $0.107\pm0.019$); on the small
